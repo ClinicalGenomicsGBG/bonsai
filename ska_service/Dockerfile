@@ -1,9 +1,9 @@
 ##############
 # Build SKA2 #
 ##############
-FROM rust:1.82-bullseye AS builder
+FROM rust:1.88-bullseye AS builder
 
-ARG SKA2_VERSION=v0.3.11
+ARG SKA2_VERSION=v0.5.1
 
 WORKDIR /usr/src/ska2
 
