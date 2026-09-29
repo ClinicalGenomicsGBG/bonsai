@@ -1,0 +1,66 @@
+# This file contains the changes we make to the original docker-compose.yml,
+# with some exceptions such as disabling the 'bonsai-net' network, and removing a port-expose on the API.
+
+# Include the original docker-compose.yml file from the Bonsai git-repository.
+# Disabled since this breaks overriding the "commmand" block for services
+#   🐞 https://github.com/containers/podman-compose/issues/1392
+#include:
+#  - docker-compose.yml
+
+services:
+  mongodb:
+    volumes:
+      #- ../data/mongodb:/data/db:z
+      - /srv/bonsai/data/mongodb:/data/db:z
+  api:
+    userns_mode: keep-id
+    user: "1001:1001"
+    env_file:
+      - '../api.env'
+    environment:
+      - ALLOWED_ORIGINS=[]
+    volumes:
+      - ./api/bonsai_api:/home/worker/app/bonsai_api:z # Mount source, for development!
+      - /srv/bonsai/data/.bash_aliases:/home/worker/.bash_aliases:z # Note: for development!
+      #- /srv/bonsai/data/api/genome_signatures:/data/signature_db:U,z
+      - /srv/bonsai/data/tmp/reference_genomes:/tmp/reference_genomes:U,z
+      - /srv/bonsai/data/tmp/annotations:/tmp/annotations:U,z
+      #- /ngp_appstorage_remapped/GMC-joint:/ngp/appstorage/bonsai/GMC-joint:ro
+  frontend:
+    userns_mode: keep-id
+    user: "1001:1001"
+    env_file:
+      - '../docker.env'
+    environment:
+      - TESTING=True
+      - GUNICORN_CMD_ARGS=--reload --log-level debug
+    command: null # Overrides the command in 'docker-compose.yml' which starts a dev server.
+    volumes:
+      - ./frontend/bonsai_app:/home/worker/app/bonsai_app:z # Mount source, for development!
+      - /srv/bonsai/data/debug/frontend/dumps:/debug_dumps:U,z
+  # todo: test ldap test
+  minhash_service:
+    #environment:
+    #  GENOME_SIGNATURE_DIR: '/srv/bonsai/data/signature_db'
+    userns_mode: keep-id
+    user: "1001:1001"
+    volumes:
+      - /srv/bonsai/data/signature_db:/data/signature_db:U,z
+    #  - /data/rclone-copy-test:/data/rclone-copy-test:U,z
+  ska_service:
+    userns_mode: keep-id
+    user: "1001:1001"
+    volumes:
+      #- ../data/index_files:/data/index_files:U,z
+      - /srv/bonsai/data/jasen-data/index_files:/data/index_files:U,z
+      #- /srv/bonsai/hcp-jasen-data/data/jasen_1.2.0/IONTORRENT_REALRUN/saureus/ska:/data/index_files/ska:U,z
+      # rclone copy dest test
+
+
+#networks:
+#  bonsai-net:
+#    driver: bridge
+#    ipam:
+#      driver: default
+#      config:
+#        - subnet: 172.0.21.0/24

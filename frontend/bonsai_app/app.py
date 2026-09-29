@@ -2,14 +2,17 @@
 
 import logging
 from itertools import zip_longest
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-from flask import Flask
+from flask import Flask, request
 
 from .blueprints import admin, alignviewers, cluster, groups, login, public, sample
 from .config import settings
 from .custom_filters import FILTERS as JINJA_FILTERS
 from .custom_filters import TESTS as JINJA_TESTS
 from .extensions import login_manager
+
+
 
 
 def create_app():
@@ -21,7 +24,7 @@ def create_app():
         {name.upper(): val for name, val in settings.model_dump().items()}
     )
     if settings.testing:
-        app.config.update({"debug": True})
+        app.config.update({"DEBUG": True})
         app.logger.setLevel(logging.DEBUG)
 
     # initialize flask extensions
@@ -35,10 +38,31 @@ def create_app():
     app.jinja_env.trim_blocks = True
     app.jinja_env.lstrip_blocks = True
 
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=1,
+        x_proto=1,
+        x_host=1,
+        x_prefix=1,
+    )
+
     # configure pages etc
     register_blueprints(app)
     register_filters(app)
     register_tests(app)
+
+    # NOTE: temporary code for debugging
+    @app.before_request
+    def log_proxy_info():
+        app.logger.warning(
+            "============== orig=%s fwd=%s scheme=%s host=%s url=%s",
+            request.environ.get("werkzeug.proxy_fix.orig"),
+            {k: v for k, v in request.environ.items() if k.startswith("HTTP_X_FORWARDED")},
+            request.scheme,
+            request.host,
+            request.url,
+        )
+
 
     return app
 

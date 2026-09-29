@@ -19,7 +19,7 @@ async function clusterSamplesInBasket(element) {
     // base dropdown element
     const baseElement = document.querySelector("#basket-cluster-samples")
     const btn = baseElement.querySelector(".btn")
-    const clusterApiRoute = baseElement.getAttribute("data-bi-cluster-route") 
+    const clusterApiRoute = baseElement.getAttribute("data-bi-cluster-route")
     const sampleIds = JSON.parse(baseElement.querySelector("input[name=sample-ids]").value)
     // construct body to pass
     let body
@@ -58,7 +58,7 @@ async function clusterSamplesInBasket(element) {
     try {
         const response = await fetch(clusterApiRoute, {
             method: "POST",
-            headers: { 
+            headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },

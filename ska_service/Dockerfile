@@ -18,13 +18,13 @@ RUN \
 FROM python:3.11.3
 
 # Create non-root user to run commands
-RUN groupadd --gid 1000 worker && useradd -g worker --uid 1000 --shell /user/sbin/nologin --create-home worker
+RUN groupadd --gid 1001 worker && useradd -g worker --uid 1001 --shell /usr/sbin/nologin --create-home worker
 
 # ska2
 COPY --from=builder /usr/local/cargo/bin/ska /usr/local/bin/ska
 
 # create default data directory
-RUN mkdir -p /data/index_files
+#RUN mkdir -p /data/index_files
 
 # Set build variables
 ENV PYTHONDONTWRITEBYTECODE=1

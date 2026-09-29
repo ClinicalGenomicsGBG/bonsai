@@ -1,7 +1,7 @@
 {% macro navbar(current_user) %}
 <nav class="navbar navbar-expand-lg navbar-light sticky-top br-navbar">
     <div class="container-fluid">
-    <a href="/" class="navbar-brand">
+    <a href="{{ url_for('public.index') }}" class="navbar-brand">
         <div class="rounded-5 d-block p-1" style="background-color: #f7efe5;">
             <img class="m-1" alt="Logo" width="40"
                  src="{{url_for('public.static', filename='bonsai_logo_sm.png')}}">

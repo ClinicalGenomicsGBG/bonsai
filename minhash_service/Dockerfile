@@ -5,10 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Create non-root user to run commands
-RUN groupadd --gid 1000 worker && useradd -g worker --uid 1000 --shell /user/sbin/nologin --create-home worker
+RUN groupadd --gid 1001 worker && useradd -g worker --uid 1001 --shell /usr/sbin/nologin --create-home worker
 
 # create default data directory
-RUN mkdir -p /data/signature_db && chown worker:worker /data/signature_db
+#RUN mkdir -p /data/signature_db && chown worker:worker /data/signature_db
 
 # copy project dir
 WORKDIR /home/worker/app

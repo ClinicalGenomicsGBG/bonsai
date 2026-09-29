@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Create non-root user
-RUN groupadd --gid 1000 worker && useradd -g worker --uid 1000 --shell /usr/sbin/nologin --create-home worker
+RUN groupadd --gid 1001 worker && useradd -g worker --uid 1001 --shell /usr/sbin/nologin --create-home worker
 
 # Set working directory
 WORKDIR /home/worker/app
@@ -14,14 +14,15 @@ WORKDIR /home/worker/app
 COPY bonsai_api bonsai_api/
 COPY setup.py setup.cfg pyproject.toml ./
 
+
 # Set ownership
 RUN chown -R worker:worker .
 
 # Install dependencies
-RUN pip install --no-cache-dir . 
+RUN pip install --no-cache-dir .
 
 # Create necessary runtime dirs
-RUN mkdir -p /data/signature_db && chown worker:worker /data/signature_db
+#RUN mkdir -p /data/signature_db && chown worker:worker /data/signature_db
 
 # Switch to non-root user
 USER worker

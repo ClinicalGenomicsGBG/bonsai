@@ -42,7 +42,10 @@ logging_config.dictConfig(
 )
 LOG = logging.getLogger(__name__)
 
-app = FastAPI(title="Bonsai")
+app = FastAPI(
+    title="Bonsai",
+    root_path="/bonsai-joint/api"
+)
 
 # configure CORS
 configure_cors(app)

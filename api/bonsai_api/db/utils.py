@@ -27,6 +27,7 @@ def get_db() -> Generator[MongoDatabase, None, None]:
         yield db
     finally:
         # teardown database connection
+        #db.close()
         db.close()
         LOG.debug("Initiate teardown of database connection")
 
@@ -45,5 +46,6 @@ def get_db_connection() -> Generator[MongoDatabase, None, None]:
         yield db
     finally:
         # teardown database connection
+        #db.close()
         db.close()
         LOG.debug("Initiate teardown of database connection")

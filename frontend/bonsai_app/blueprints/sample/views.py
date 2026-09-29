@@ -139,6 +139,14 @@ def sample(sample_id: str) -> str:
         reverse=True,
     )
 
+    #from pathlib import Path
+    #from datetime import datetime
+    #current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
+    #dumpfile = Path(f"/debug_dumps/dump__sample_info__{current_datetime}")
+    #dumpfile.parent.mkdir(exist_ok=True, parents=True)
+    #dumpfile.write_text(json.dumps(sample_info, indent=2))
+
+
     # filter tbprofiler results and sort variants
     LOG.warning(len(sample_info["element_type_result"][0]["result"]["variants"]))
     sample_info = filter_variants_if_processed(sample_info)
@@ -279,6 +287,10 @@ def download_lims(sample_id: str):
         return redirect(request.referrer)
 
     # build Flask response using the API headers and bytes
+    #try:
+    #    print("json:", json.dumps(api_resp.json(), indent=2))
+    #except Exception:
+    #    pass
     content = api_resp.content # bytes
     response = make_response(content)
 
