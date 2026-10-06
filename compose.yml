@@ -44,17 +44,21 @@ services:
     #  GENOME_SIGNATURE_DIR: '/srv/bonsai/data/signature_db'
     userns_mode: keep-id
     user: "1001:1001"
+    restart: on-failure
     volumes:
       - /srv/bonsai/data/signature_db:/data/signature_db:U,z
     #  - /data/rclone-copy-test:/data/rclone-copy-test:U,z
   ska_service:
     userns_mode: keep-id
     user: "1001:1001"
+    restart: on-failure
     volumes:
       #- ../data/index_files:/data/index_files:U,z
       - /srv/bonsai/data/jasen-data/index_files:/data/index_files:U,z
       #- /srv/bonsai/hcp-jasen-data/data/jasen_1.2.0/IONTORRENT_REALRUN/saureus/ska:/data/index_files/ska:U,z
       # rclone copy dest test
+  allele_cluster_service:
+    restart: on-failure
 
 
 #networks:
