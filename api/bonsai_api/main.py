@@ -6,6 +6,7 @@ import logging.config as logging_config
 from fastapi import FastAPI
 
 from .config import settings
+from .db.utils import close_db, open_db
 from .extensions.ldap_extension import ldap_connection
 from .internal.middlewares import configure_cors
 from .routers import (
@@ -55,6 +56,8 @@ if not settings.api_authentication:
     LOG.warning("API authentication disabled!")
 
 # configure events
+app.add_event_handler("startup", open_db)
+app.add_event_handler("shutdown", close_db)
 if settings.use_ldap_auth:
     app.add_event_handler("startup", ldap_connection.init_app)
     app.add_event_handler("shutdown", ldap_connection.teardown)

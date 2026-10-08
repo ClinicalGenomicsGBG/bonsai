@@ -1,0 +1,17 @@
+[project]
+name = "hci_hcp_service"
+version = "2.1.1"
+description = ""
+requires-python = ">=3.14" # To match NGPIris
+dependencies = [
+    "NGPIris==5.6.8",
+    "rq==1.16.1",
+    "redis>=4.5,<6",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["hci_hcp_service"]

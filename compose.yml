@@ -4,49 +4,54 @@
 # Include the original docker-compose.yml file from the Bonsai git-repository.
 # Disabled since this breaks overriding the "commmand" block for services
 #   🐞 https://github.com/containers/podman-compose/issues/1392
-#include:
-#  - docker-compose.yml
+# include:
+#   env_file: development.env
+# #  - docker-compose.yml
 
 services:
   mongodb:
     volumes:
       #- ../data/mongodb:/data/db:z
-      - /srv/bonsai/data/mongodb:/data/db:z
+      - "${DATA_ROOT}/mongodb:/data/db:z"
   api:
     userns_mode: keep-id
     user: "1001:1001"
     env_file:
-      - '../api.env'
+      - "${ENV_ROOT}/api.env"
     environment:
       - ALLOWED_ORIGINS=[]
+      - HCP_UPLOAD_ENABLED=true
+      - HCP_UPLOAD_TIMEOUT=60
+    depends_on:
+      - hci_hcp_service
     volumes:
       - ./api/bonsai_api:/home/worker/app/bonsai_api:z # Mount source, for development!
-      - /srv/bonsai/data/.bash_aliases:/home/worker/.bash_aliases:z # Note: for development!
-      #- /srv/bonsai/data/api/genome_signatures:/data/signature_db:U,z
-      - /srv/bonsai/data/tmp/reference_genomes:/tmp/reference_genomes:U,z
-      - /srv/bonsai/data/tmp/annotations:/tmp/annotations:U,z
+      - "${DATA_ROOT}/.bash_aliases:/home/worker/.bash_aliases:z" # Note: for development!
+      #- "${DATA_ROOT}/api/genome_signatures:/data/signature_db:U,z"
+      - "${DATA_ROOT}/tmp/reference_genomes:/tmp/reference_genomes:U,z"
+      - "${DATA_ROOT}/tmp/annotations:/tmp/annotations:U,z"
       #- /ngp_appstorage_remapped/GMC-joint:/ngp/appstorage/bonsai/GMC-joint:ro
   frontend:
     userns_mode: keep-id
     user: "1001:1001"
     env_file:
-      - '../docker.env'
+      - "${ENV_ROOT}/frontend.env"
     environment:
       - TESTING=True
       - GUNICORN_CMD_ARGS=--reload --log-level debug
     command: null # Overrides the command in 'docker-compose.yml' which starts a dev server.
     volumes:
       - ./frontend/bonsai_app:/home/worker/app/bonsai_app:z # Mount source, for development!
-      - /srv/bonsai/data/debug/frontend/dumps:/debug_dumps:U,z
+      - "${DATA_ROOT}/debug/frontend/dumps:/debug_dumps:U,z"
   # todo: test ldap test
   minhash_service:
     #environment:
-    #  GENOME_SIGNATURE_DIR: '/srv/bonsai/data/signature_db'
+    #  GENOME_SIGNATURE_DIR: "${DATA_ROOT}/signature_db"
     userns_mode: keep-id
     user: "1001:1001"
     restart: on-failure
     volumes:
-      - /srv/bonsai/data/signature_db:/data/signature_db:U,z
+      - "${DATA_ROOT}/signature_db:/data/signature_db:U,z"
     #  - /data/rclone-copy-test:/data/rclone-copy-test:U,z
   ska_service:
     userns_mode: keep-id
@@ -54,11 +59,27 @@ services:
     restart: on-failure
     volumes:
       #- ../data/index_files:/data/index_files:U,z
-      - /srv/bonsai/data/jasen-data/index_files:/data/index_files:U,z
+      - "${DATA_ROOT}/jasen-data/index_files:/data/index_files:U,z"
       #- /srv/bonsai/hcp-jasen-data/data/jasen_1.2.0/IONTORRENT_REALRUN/saureus/ska:/data/index_files/ska:U,z
       # rclone copy dest test
   allele_cluster_service:
     restart: on-failure
+  hci_hcp_service:
+    container_name: hci_hcp_service
+    build:
+      context: hci_hcp_service
+      network: host
+    environment: PYTHONPATH=/home/worker/app
+    env_file:
+      - "${ENV_ROOT}/hci_hcp.env"
+    restart: on-failure
+    volumes:
+      - ./hci_hcp_service/hci_hcp_service:/home/worker/app/hci_hcp_service:ro,z # For development
+      - "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:U,Z,ro"
+    depends_on:
+      - redis
+    networks:
+      - bonsai-net
 
 
 #networks:

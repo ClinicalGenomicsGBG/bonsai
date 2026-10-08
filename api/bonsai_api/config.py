@@ -2,7 +2,7 @@
 
 import os
 import ssl
-from typing import Annotated
+from typing import Annotated, Literal
 from pathlib import Path
 
 from pydantic import AfterValidator, Field, FilePath
@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # Redis connection
     redis_host: str = "redis"
     redis_port: str = "6379"
+
+    # HCP uploader & HCI-mock DB
+    hcp_upload_enabled: bool = True
+    hcp_upload_timeout: int = 60
+    hci_mock_database_name: str = "hci_mock"
+    # What POST /samples/ does when the sample_id already exists:
+    # "reject" (409 conflict) or "replace" (in MongoDB, HCP and the HCI mock).
+    sample_duplicate_policy: Literal["reject", "replace"] = "reject"
 
     # Reference genome and annotations for IGV
     reference_genomes_dir: str = "/tmp/reference_genomes"

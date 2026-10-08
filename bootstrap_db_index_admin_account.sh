@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-podman-compose exec api bonsai_api index
-podman-compose exec api bonsai_api create-user -u admin                 \
+# podc --env-file development.env -f docker-compose.yml -f compose.yml
+podman-compose --env-file development.env -f docker-compose.yml -f compose.yml exec api bonsai_api index
+podman-compose --env-file development.env -f docker-compose.yml -f compose.yml exec api bonsai_api create-user -u admin                 \
                                                -p admin                 \
                                                --fname Place            \
                                                --lname Holder           \

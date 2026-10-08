@@ -26,11 +26,9 @@ from prp.models.phenotype import (
 )
 from prp.models.sample import MethodIndex, ShigaTypingMethodIndex
 from pydantic import BaseModel, Field
-from pymongo.errors import DuplicateKeyError
 
 from bonsai_api.crud.metadata import add_metadata_to_sample
 from bonsai_api.crud.sample import EntryNotFound, add_comment, add_location
-from bonsai_api.crud.sample import create_sample as create_sample_record
 from bonsai_api.crud.sample import delete_samples as delete_samples_from_db
 from bonsai_api.crud.sample import get_sample, get_samples_summary
 from bonsai_api.crud.sample import hide_comment as hide_comment_for_sample
@@ -55,6 +53,14 @@ from bonsai_api.models.sample import Comment, CommentInDatabase, SampleInCreate,
 from bonsai_api.models.metadata import InputMetaEntry
 from bonsai_api.models.user import UserOutputDatabase
 from bonsai_api.redis import ClusterMethod, ConnectionError
+from bonsai_api.redis.hcp import (
+    HcpQueueUnavailable,
+    HcpUploadError,
+    HcpUploadTimeout,
+)
+from bonsai_api.services import SampleService
+from bonsai_api.services.dependencies import get_sample_service
+from bonsai_api.services.sample_service import RollbackError, SampleAlreadyExistsError
 from bonsai_api.redis.minhash import (
     SubmittedJob,
     schedule_add_genome_signature,
@@ -125,20 +131,40 @@ async def samples_summary(
 @router.post("/samples/", status_code=status.HTTP_201_CREATED, tags=[RouterTags.SAMPLE])
 async def create_sample(
     sample: PipelineResult,
-    db: Database = Depends(get_db),
-    current_user: UserOutputDatabase = Security(  # pylint: disable=unused-argument
+    current_user: UserOutputDatabase = Security(
         get_current_active_user, scopes=[WRITE_PERMISSION]
     ),
+    samples: SampleService = Depends(get_sample_service)
 ) -> dict[str, str]:
     """Entrypoint for creating a new sample."""
+    username = current_user.username if current_user else None
     try:
-        db_obj = await create_sample_record(db, sample)
-    except DuplicateKeyError as error:
+        db_obj = await samples.create(sample, username)
+    except SampleAlreadyExistsError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=error.details["errmsg"],
+            detail=str(error),
         ) from error
-    return {"type": "success", "sample_id": db_obj.sample_id}
+    except RollbackError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(error),
+        ) from error
+    except HcpUploadError as hcp_upload_error:
+        if isinstance(hcp_upload_error, HcpUploadTimeout):
+            code = status.HTTP_504_GATEWAY_TIMEOUT
+        elif isinstance(hcp_upload_error, HcpQueueUnavailable):
+            code = status.HTTP_503_SERVICE_UNAVAILABLE
+        else:
+            code = status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(
+            status_code=code, detail=f"Sample not saved, HCP upload failed: {hcp_upload_error}"
+        ) from hcp_upload_error
+
+    return {
+        "type": "success",
+        "sample_id": db_obj.sample_id,
+    }
 
 
 @router.delete("/samples/", status_code=status.HTTP_200_OK, tags=[RouterTags.SAMPLE])
