@@ -54,13 +54,21 @@ from bonsai_api.models.metadata import InputMetaEntry
 from bonsai_api.models.user import UserOutputDatabase
 from bonsai_api.redis import ClusterMethod, ConnectionError
 from bonsai_api.redis.hcp import (
-    HcpQueueUnavailable,
+    HcpDownloadQueueUnavailable,
+    HcpDownloadError,
+    HcpDownloadTimeout,
+    HcpUploadQueueUnvailable,
     HcpUploadError,
     HcpUploadTimeout,
 )
+from bonsai_api.redis.sample_lock import SampleLockError
 from bonsai_api.services import SampleService
 from bonsai_api.services.dependencies import get_sample_service
-from bonsai_api.services.sample_service import RollbackError, SampleAlreadyExistsError
+from bonsai_api.services.sample_service import (
+    RollbackError,
+    SampleAlreadyExistsError,
+    SampleRestoreError,
+)
 from bonsai_api.redis.minhash import (
     SubmittedJob,
     schedule_add_genome_signature,
@@ -150,10 +158,15 @@ async def create_sample(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(error),
         ) from error
+    except SampleLockError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
     except HcpUploadError as hcp_upload_error:
         if isinstance(hcp_upload_error, HcpUploadTimeout):
             code = status.HTTP_504_GATEWAY_TIMEOUT
-        elif isinstance(hcp_upload_error, HcpQueueUnavailable):
+        elif isinstance(hcp_upload_error, HcpUploadQueueUnvailable):
             code = status.HTTP_503_SERVICE_UNAVAILABLE
         else:
             code = status.HTTP_502_BAD_GATEWAY
@@ -190,18 +203,40 @@ async def delete_many_samples(
 async def read_sample(
     sample_id: str = SAMPLE_ID_PATH,
     db: Database = Depends(get_db),
+    samples: SampleService = Depends(get_sample_service),
     current_user: UserOutputDatabase = Security(  # pylint: disable=unused-argument
         get_current_active_user, scopes=[READ_PERMISSION]
     ),
 ) -> SampleInDatabase:
     """Read sample with sample id from database."""
+    username = current_user.username if current_user else None
     try:
-        sample_obj = await get_sample(db, sample_id)
+        sample_obj = await samples.get(sample_id, username)
     except EntryNotFound as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
         ) from error
+    except SampleRestoreError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(error),
+        ) from error
+    except SampleLockError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    except HcpDownloadError as hcp_download_error:
+        if isinstance(hcp_download_error, HcpDownloadTimeout):
+            code = status.HTTP_504_GATEWAY_TIMEOUT
+        elif isinstance(hcp_download_error, HcpDownloadQueueUnavailable):
+            code = status.HTTP_503_SERVICE_UNAVAILABLE
+        else:
+            code = status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(
+            status_code=code, detail=f"Sample not cached, HCP download failed: {hcp_download_error}"
+        ) from hcp_download_error
     return sample_obj
 
 

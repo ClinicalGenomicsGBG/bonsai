@@ -157,3 +157,16 @@ def upload_sample(document:str, deadline: float, overwrite: bool = False) -> dic
     LOG.info("Uploaded '%s' to bucket '%s'", key, config.bucket)
     return return_object_base | {"uploaded": True}
 
+
+def download_sample(hcp_key: str, deadline: float) -> str:
+    """
+    todo
+    """
+    if time.time() > deadline:
+        raise DeadlineExceeded("Download started after the API deadline; object not downloaded")
+
+    config = load_settings()
+    hcp = connect(config)
+    document = hcp.s3_client.get_object(Bucket=config.bucket, Key=key)["Body"].read().decode("utf-8")
+    LOG.info("Downloaded '%s' from bucket '%s'", key, config.bucket)
+    return document

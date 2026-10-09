@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     # HCP uploader & HCI-mock DB
     hcp_upload_enabled: bool = True
     hcp_upload_timeout: int = 60
+    hcp_download_timeout: int = 60  # seconds to wait for a Sample to download from HCP
     hci_mock_database_name: str = "hci_mock"
     # What POST /samples/ does when the sample_id already exists:
     # "reject" (409 conflict) or "replace" (in MongoDB, HCP and the HCI mock).
@@ -121,7 +122,7 @@ class Settings(BaseSettings):
     )
 
     lims_export_config: LimsConfigPath = Field(
-        default=None, 
+        default=None,
         description=(
             "Path to custom LIMS exporter YAML configuration."
             "If omitted, the application will fall back the packaged default."

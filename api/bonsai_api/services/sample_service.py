@@ -8,14 +8,18 @@ from pymongo.errors import DuplicateKeyError
 
 from ..config import settings
 from ..crud.sample import create_sample as create_sample_record
-from ..crud.sample import get_samples_summary
+from ..crud.sample import EntryNotFound, get_sample, get_samples_summary
 from ..db import Database
 from ..models.sample import SampleInDatabase
-from ..redis.hcp import HcpUploadError, upload_sample_document
+from ..redis.hcp import HcpUploadError, download_sample_document, upload_sample_document
+from ..redis.sample_lock import sample_lock, SampleLockError
 from .cached_sample_service import CachedSampleService
 from .hci_mock_service import HciMockService
 
 LOG = logging.getLogger(__name__)
+
+# Extra seconds a sample's lock lives beyond the HCP timeout, for the MongoDB work around it
+LOCK_MARGIN_SECONDS = 30
 
 
 class SampleAlreadyExistsError(Exception):
@@ -24,6 +28,14 @@ class SampleAlreadyExistsError(Exception):
 
 class RollbackError(Exception):
     """Storing the sample failed, and removing the new MongoDB document failed too."""
+
+
+class SampleNotFoundError(EntryNotFound):
+    """The sample is neither chached in MongoDB nor recorded in the HCI mock"""
+
+
+class SampleRestoreError(Exception):
+    """The sample's HCP entry cannot be written to MongoDB"""
 
 
 class SampleService:
@@ -54,6 +66,12 @@ class SampleService:
             new MongoDB document has been removed again.
         :raises RollbackError: The upload failed and removing the new document failed too.
         """
+        async with sample_lock(sample.sample_id, settings.hcp_upload_timeout + LOCK_MARGIN_SECONDS):
+            return await self._create(sample, username)
+
+
+    async def _create(self, sample: PipelineResult, username: str | None) -> SampleInDatabase:
+        """Create the sample (see create); the caller holds the sample's lock"""
         replace = settings.sample_duplicate_policy == "replace"
         if not replace and await self._exists(sample.sample_id):
             raise SampleAlreadyExistsError(f"Sample {sample.sample_id} already exists")
@@ -89,6 +107,81 @@ class SampleService:
                 )
         return db_obj
 
+    async def _read_if_cached(self, sample_id: str) -> SampleInDatabase | None:
+        """The sampple from MongoDB if cached_sample has it and the document exists, else None"""
+        sample = await self._cached_samples.get(sample_id)
+        if sample is None:
+            return None
+
+        try:
+            return await get_sample(self._db, sample_id)
+        except EntryNotFound:
+            LOG.info("Cache entry for '%s' is stale; no document in MongoDB", sample_id)
+
+
+    async def get(self, sample_id: str, username: str | None) -> SampleInDatabase:
+        """Get a sample, fetching it from the HCP if it isn't already cached in 'cached_sample'
+
+        cached_sample decides whether the sample should be in MongoDB. Without
+        an entry, or with a stale one (no document in MongoDB), the HCP copy is
+        downloaded and written to MongoDB, replacing any local document with
+        the same sample_id, and the entry is updated.
+
+        :param username: Who requested the sample; None without login.
+        :raises SampleNotFoundError: The sample is neither cached nor in the HCI mock.
+        :raises HcpDownloadError: The download failed (subclasses tell why).
+        :raises SampleRestoreError: The HCP copy can't be written to MongoDB.
+        :raises SampleLockError: The sample's lock couldn't be taken.
+        """
+        LOG.debug("Sample with id '%s' was requested by '%s'", sample_id, username)
+        sample = await self._read_if_cached(sample_id)
+
+        if sample is not None:
+            LOG.debug("Sample with '%s' found in cache", sample_id)
+            self._touch(sample_id, username)
+            LOG.debug("===== Sample START =====================================")
+            print(sample)
+            LOG.debug("===== Sample START =====================================")
+            return sample
+
+        async with sample_lock(sample_id, settings.hcp_download_timeout + LOCK_MARGIN_SECONDS):
+
+            # Another request may have cached the sample while waiting for the lock
+            sample = await self._cached_samples.get(sample_id)
+
+            if sample is None:
+                sample = self._fetch_sample_from_hcp(sample_id)
+                # Write the sample to the cached_samples tracker
+
+            self._touch(sample_id, username)
+
+        LOG.debug("Returning sample with id '%s'", sample_id)
+        return sample
+
+
+    async def _touch(self, sample_id: str, username: str | None) -> None:
+        """Update cached_samples"""
+        try:
+            await self._cached_samples.touch(sample_id, username)
+        except Exception as error:  # pylint: disable=broad-except
+            LOG.error("Could not record '%s' as cached: %s", sample_id, error)
+
+
+
+    async def _fetch_sample_from_hcp(self, sample_id: str) -> SampleInDatabase:
+        """Fetch sample from the HCP and insert into the MongoDB,
+        the caller holds the Redis lock"""
+        hci_entry = await self._hci_mock.get(sample_id)
+        if hci_entry is None:
+            raise SampleNotFoundError(f"Sample '{sample_id} is neither cached nor in HCP")
+        LOG.info("Fetching '%s' from HCP (key: '%s')", sample_id, entry.hcp_key)
+        document = await download_sample_document(entry.hcp_key)
+        # Insert the downloaded sample into the local DB and cache
+        await self._restore(sample_id, document)
+        # Get the document from the local DB
+        sample = await get_sample(self._db, sample_id)
+
+
     async def _exists(self, sample_id: str) -> bool:
         """True if the sample is cached in MongoDB or recorded in the HCI mock (i.e. in HCP)."""
         if await self._db.sample_collection.count_documents({"sample_id": sample_id}, limit=1):
@@ -112,6 +205,40 @@ class SampleService:
             summary=row or {},
             overwrite=hcp_result["uploaded"],
         )
+
+    async def _restore(self, sample_id: str, document: dict) -> None:
+        """Write a sample's HCP copy to MongoDB under its original _id.
+
+        Replaces the local documents of the same sample, never a document of another sample
+        """
+        if document.get("sample_id") != sample_id:
+            raise SampleRestoreError(
+                f"The HCP copy for '{sample_id}' belongs to sample '{document.get('sample_id')}'"
+            )
+        object_id = ObjectId(document["_id"])
+        existing = await self._db.sample_collection.find_one({"_id": object_id}, {"sample_id": 1})
+        if existing is not None and existing.get("sample_id") != sample_id:
+            raise SampleRestoreError(
+                f"Can't restore '{sample_id}': its _id {object_id} belongs to sample '{existing.get('sample_id')}'"
+            )
+        # one document per sample_id: drop the local versions the HCP copy replaces
+        await self._db.sample_collection.delete_many(
+            {"sample_id": sample_id, "_id": {"$ne": object_id}}
+        )
+        try:
+            # the filter only matches a document of the same sample; otherwise it inserts
+            await self._db.sample_collection.replace_one(
+                {"_id": object_id, "sample_id": sample_id},
+                {**document, "_id": object_id},
+                upsert=True,
+            )
+        except DuplicateKeyError as error:
+            # the _id was taken by another sample in the meantime: don't overwrite it
+            raise SampleRestoreError(
+                f"Can't restore '{sample_id}': its _id {object_id} belongs to another sample"
+            ) from error
+
+
 
     async def _upload_to_hcp_or_rollback(self, inserted_id: str, overwrite: bool) -> dict:
         """
