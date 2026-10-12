@@ -21,7 +21,7 @@ def create_app():
         {name.upper(): val for name, val in settings.model_dump().items()}
     )
     if settings.testing:
-        app.config.update({"debug": True})
+        app.config.update({"DEBUG": True})
         app.logger.setLevel(logging.DEBUG)
 
     # initialize flask extensions

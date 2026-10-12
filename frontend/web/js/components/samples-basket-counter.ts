@@ -1,4 +1,5 @@
 import { BasketState } from "../state/basket-state";
+import { BasketSample } from "../types";
 
 export class SampleBasketCounter extends HTMLElement {
   private state: BasketState | null = null;
@@ -16,8 +17,8 @@ export class SampleBasketCounter extends HTMLElement {
     }
   }
 
-  private handleStateChange = (ids: string[]) => {
-    this.updateCounter(ids.length)
+  private handleStateChange = (samples: BasketSample[]) => {
+    this.updateCounter(samples.length)
   }
 
   set basketState(state: BasketState) {

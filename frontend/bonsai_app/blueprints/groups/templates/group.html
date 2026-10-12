@@ -55,11 +55,12 @@
 <script>
     const apiUrl = "{{ config.API_EXTERNAL_URL }}"
     const accessToken = "{{ token }}"
+    const basketSamples = {{ basket_samples | tojson }}
     // template code for adding to basket
     // template code for searching similar samples
 
     document.addEventListener('DOMContentLoaded', () => {
-        bonsai.initGroupView(apiUrl, accessToken, "")
+        bonsai.initGroupView(apiUrl, accessToken, "", basketSamples)
     });
 </script>
 {% endblock content %}

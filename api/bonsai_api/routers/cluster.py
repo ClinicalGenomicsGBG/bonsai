@@ -10,6 +10,7 @@ from pydantic import ConfigDict, Field
 from ..crud.errors import EntryNotFound
 from ..crud.sample import (
     TypingProfileOutput,
+    ensure_sample_in_database,
     get_signature_path_for_samples,
     get_ska_index_path_for_samples,
     get_typing_profiles,
@@ -72,6 +73,10 @@ async def cluster_samples(
     :return: Information on scheduled job
     :rtype: SubmittedJob
     """
+    ####
+    for sample_id in cluster_input.sample_ids:
+        await ensure_sample_in_database(db, sample_id)
+    ####
     if typing_method == TypingMethod.MINHASH:
         job = schedule_minhash_cluster_samples(
             cluster_input.sample_ids, cluster_input.method

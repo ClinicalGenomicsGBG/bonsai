@@ -32,7 +32,8 @@ from bonsai_api.crud.metadata import add_metadata_to_sample
 from bonsai_api.crud.sample import EntryNotFound, add_comment, add_location
 from bonsai_api.crud.sample import create_sample as create_sample_record
 from bonsai_api.crud.sample import delete_samples as delete_samples_from_db
-from bonsai_api.crud.sample import get_sample, get_samples_summary
+#from bonsai_api.crud.sample import get_sample, get_samples_summary
+from bonsai_api.crud.sample import ensure_sample_in_database, get_sample, get_samples_summary
 from bonsai_api.crud.sample import hide_comment as hide_comment_for_sample
 from bonsai_api.crud.sample import update_sample as crud_update_sample
 from bonsai_api.crud.sample import (
@@ -170,7 +171,8 @@ async def read_sample(
 ) -> SampleInDatabase:
     """Read sample with sample id from database."""
     try:
-        sample_obj = await get_sample(db, sample_id)
+        #sample_obj = await get_sample(db, sample_id)
+        sample_obj = await ensure_sample_in_database(db, sample_id)
     except EntryNotFound as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -19,6 +19,26 @@
         <div id="group-container" data-test-id="group-container"></div>
         <h5 class="card-title text-uppercase fw-light pt-4">All samples</h5>
         <hr class="mt-2 col-md-2 border border-success border-2">
+
+
+	<form method="get"
+	      action="{{ url_for('groups.groups') }}"
+	      class="row g-2 align-items-center mb-3">
+	    <div class="col-auto">
+		<input
+		    class="form-control"
+		    type="text"
+		    name="searchterm"
+		    value="{{ search_term }}"
+		    placeholder="Search samples"
+		>
+	    </div>
+	    <div class="col-auto">
+		<button class="btn btn-primary" type="submit">Search</button>
+	    </div>
+	</form>	
+
+
         <nav class="navbar bg-light">
             <div id="user-action-container" class="container-fluid justify-content-start">
                 {{ add_to_basket_btn() }}
@@ -41,11 +61,12 @@
 <script>
     const apiUrl = "{{ config.API_EXTERNAL_URL }}"
     const accessToken = "{{ token }}"
+    const basketSamples = {{ basket_samples | tojson }}
     // template code for adding to basket
     // template code for searching similar samples
 
     document.addEventListener('DOMContentLoaded', () => {
-        bonsai.initGroupView(apiUrl, accessToken, "")
+        bonsai.initGroupView(apiUrl, accessToken, "", basketSamples)
     });
 </script>
 {% endblock content %}

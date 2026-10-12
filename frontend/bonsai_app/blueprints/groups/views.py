@@ -32,6 +32,8 @@ from ...bonsai import (
 )
 from ...models import BadSampleQualityAction, PhenotypeType, QualityControlResult
 
+from ...hci import get_hci_samples
+
 LOG = logging.getLogger(__name__)
 
 groups_bp = Blueprint(
@@ -43,6 +45,59 @@ groups_bp = Blueprint(
 )
 
 
+def external_to_samples(response):
+    samples = []
+
+    def first(metadata, key):
+        values = metadata.get(key, [])
+        return values[0] if values else ""
+
+    for result in response.get("results", []):
+        metadata = result.get("metadata", {})
+
+        profile_raw = first(metadata, "pipelineAnalysis_profile")
+        try:
+            profile = json.loads(profile_raw) if profile_raw else []
+        except (json.JSONDecodeError, TypeError):
+            profile = []
+
+        samples.append({
+            "sample_id": first(metadata, "rootSample_name"),
+            "sample_name": first(metadata, "rootSample_name"),
+            "lims_id": first(metadata, "rootLims_id"),
+            "assay": first(metadata, "pipelineAssay"),
+            "release_life_cycle": first(
+                metadata, "pipelineRelease_life_cycle"
+            ),
+            "sequencing_run": first(metadata, "sequencingRun_id"),
+
+            "species_prediction": {
+                "scientific_name": ""
+            },
+            "qc_status": {
+                "status": ""
+            },
+
+            "profile": profile,
+            "comments": [],
+            "tags": [],
+
+            "mlst": first(
+                metadata,
+                "typing_result_resultSequence_type"
+            ),
+            "stx": "",
+            "oh_type": "",
+
+            "created_at": first(metadata, "HCI_doc_version"),
+        })
+
+    return {
+        "data": samples,
+        "records_total": response.get("hitCount", len(samples)),
+    }
+
+
 @groups_bp.route("/groups")
 @login_required
 def groups() -> str:
@@ -51,6 +106,18 @@ def groups() -> str:
     :return: generated HTML page
     :rtype: str
     """
+    all_samples = {"data": []}
+
+    search_term = request.args.get("searchterm", "").strip()
+    if search_term:
+        #all_samples = search_remote_samples(search_term)
+        resp = get_hci_samples(search_term)
+        all_samples = external_to_samples(resp)
+
+    if False:
+        return str(resp)
+    #formatted = reformat_hci_resp(resp)
+
     # if not valid token
     if current_user.get_id() is None:
         LOG.info(
@@ -59,7 +126,7 @@ def groups() -> str:
         return redirect(url_for("public.index"))
 
     token = TokenObject(**current_user.get_id())
-    all_samples = get_samples(token, limit=0, skip=0)
+    #all_samples = get_samples(token, limit=0, skip=0)
 
     bad_qc_actions = [member.value for member in BadSampleQualityAction]
 
@@ -97,6 +164,7 @@ def groups() -> str:
         "groups.html",
         title="Groups",
         table_data=table_data,
+        basket_samples=all_samples["data"],
         token=current_user.get_id().get("token"),
         bad_qc_actions=bad_qc_actions,
     )
@@ -256,6 +324,7 @@ def group(group_id: str) -> str:
         selected_samples=selected_samples,
         group_desc=group_info["description"],
         table_data=table_data,
+        basket_samples=samples_info["data"],
         table_definition=group_info["table_columns"],
         modified=group_info["modified_at"],
         display_qc=display_qc,

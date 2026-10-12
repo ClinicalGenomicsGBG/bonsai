@@ -164,7 +164,9 @@ USER_ROLES = {
         "locations:write",
     ],
     "uploader": [
-        "groups:write" "samples:write",
+        "groups:write",
+        "samples:write",
+        "users:me",
     ],
 }
 

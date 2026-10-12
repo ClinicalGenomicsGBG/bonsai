@@ -19,6 +19,7 @@ import { User } from "./user";
 import { BasketState } from "./state/basket-state";
 import { SampleBasketCounter } from "./components/samples-basket-counter";
 import { BasketComponent } from "./components/sample-basket";
+import { BasketSample } from "./types";
 
 import "./components/group-list";
 import "./components/group-selector";
@@ -53,7 +54,7 @@ function initBasket(api: ApiService): BasketState | void {
   counterElement.appendChild(basketCounter);
 
   // init component for samples in basket
-  const basketComponent = new BasketComponent(basketState, api.getSamplesDetails.bind(api));
+  const basketComponent = new BasketComponent(basketState);
   basketElement.appendChild(basketComponent);
 
   // assign functions to DOM objects
@@ -100,6 +101,7 @@ export async function initGroupView(
   bonsaiApiUrl: string,
   accessToken: string,
   refreshToken: string,
+  samples: BasketSample[] = [],
 ): Promise<void> {
   // setup base functionality
   const api = initApi(bonsaiApiUrl, accessToken, refreshToken);
@@ -118,6 +120,28 @@ export async function initGroupView(
     }
   });
   const table = initSamplesTable("sample-table", tableConfig);
+  const samplesById = new Map(
+    samples.map((sample) => [sample.sample_id, sample]),
+  );
+
+  const addToBasketBtn = document.getElementById(
+    "add-to-basket-btn",
+  ) as HTMLButtonElement;
+  if (addToBasketBtn) {
+    addToBasketBtn.onclick = () => {
+      const selectedSamples = table.getSelectedRows().map((id) => {
+        return (
+          samplesById.get(id) ?? {
+            sample_id: id,
+            sample_name: id,
+            assay: "",
+          }
+        );
+      });
+      basket.addSamples(selectedSamples);
+    };
+  }
+
   // get logged in user
   const userInfo = await api.getUserInfo();
   const user = new User(userInfo);
@@ -134,13 +158,7 @@ export async function initGroupView(
   ) as HTMLElement;
   if (groupContainer) groupContainer.appendChild(groupList);
 
-  // attach function to DOM element
-  const addToBasketBtn = document.getElementById(
-    "add-to-basket-btn",
-  ) as HTMLButtonElement;
-  if (addToBasketBtn)
-    addToBasketBtn.onclick = () => basket.addSamples(table.getSelectedRows());
-
+  // attach functions to DOM elements
   const deleteSamplesBtn = document.getElementById(
     "remove-samples-btn",
   ) as HTMLButtonElement;
