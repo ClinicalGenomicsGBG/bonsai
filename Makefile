@@ -27,6 +27,15 @@ help:
 	@echo "        podman-compose up -d"
 
 
+.PHONY: podc
+podc:
+	@echo "$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS)"
+
+
+.PHONY: compose-services
+compose-services:
+	@$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS) config --services
+
 build:
 	$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS) build
 
@@ -50,6 +59,9 @@ rebuild:
 restart:
 	$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS) stop
 	$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS) start
+
+restart_dr_jan_itor:
+	$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS) restart dr_jan_itor
 
 start:
 	$(PODMAN_COMPOSE) $(PODMAN_COMPOSE_OPTIONS) start
