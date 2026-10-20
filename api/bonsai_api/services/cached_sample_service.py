@@ -4,6 +4,7 @@ import logging
 from typing import Iterable
 
 from pymongo import ASCENDING, UpdateOne
+from pymongo.results import DeleteResult
 
 from ..db import Database
 from ..models.cached_sample import CachedSample
@@ -26,6 +27,7 @@ class CachedSampleService:
     _indexes_created = False
 
     def __init__(self, db: Database):
+        # self._db = db
         self._collection = db.db[COLLECTION]
 
     async def _ensure_indexes(self) -> None:
@@ -79,4 +81,38 @@ class CachedSampleService:
             {"sample_id": {"$in": list(sample_ids)}}, {"_id": 0, "sample_id": 1}
         )
         return {doc["sample_id"] async for doc in cursor}
+
+
+    async def expired_ids(self, cutoff) -> list[str]:
+        """Return list of sample_ids for expired cache entries
+
+        :param cutoff: entries last accessed before this `datetime` count as expired
+        :type cutoff: datetime
+        :return: sample_ids of expired cache entries
+        :rtype: list[str]
+        """
+        await self._ensure_indexes()
+        cursor = self._collection.find(
+            {
+                "last_accessed_at": {"$lt": cutoff}
+            },
+            {
+                "_id": 0,
+                "sample_id": 1
+            }
+        )
+        docs = [doc["sample_id"] async for doc in cursor]
+        return docs
+
+
+    async def delete_cached_sample(self, sample_id: str) -> DeleteResult:
+        """Delete cached sample from the cache
+
+        :param sample_id: Sample ID of cached sample to delete.
+        :type sample_id: str
+        :return: the result of the delete operation
+        :rtype: DeleteResult
+        """
+
+        return await self._collection.delete_one({ "sample_id": sample_id })
 

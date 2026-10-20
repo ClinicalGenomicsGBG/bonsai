@@ -7,6 +7,12 @@ providers in services.dependencies.
 from .cached_sample_service import CachedSampleService
 from .hci_mock_service import HciMockService
 from .sample_service import SampleService
+from .cache_cleanup_service import CacheCleanupService
 
-__all__ = ["CachedSampleService", "HciMockService", "SampleService"]
+__all__ = [
+    "CachedSampleService",
+    "HciMockService",
+    "SampleService",
+    "CacheCleanupService",
+]
 

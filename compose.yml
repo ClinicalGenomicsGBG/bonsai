@@ -80,6 +80,36 @@ services:
       - redis
     networks:
       - bonsai-net
+  dr_jan_itor:
+    container_name: dr_jan_itor
+    logging:
+      driver: k8s-file
+      options:
+        max-size: "10m"
+    build:
+      context: api
+      network: host
+    restart: on-failure
+    depends_on:
+      - mongodb
+      - redis
+      # api:
+      #   condition: service_healthy
+      #   restart: true
+    # ports:
+    #   - "8002:8000"
+    env_file:
+      - "${ENV_ROOT}/api.env"
+    environment:
+      - PYTHONUNBUFFERED=
+      - PYTHONPATH=/home/worker/app
+      - DB_HOST=mongodb
+      - CACHE_CLEANUP_LOG_LEVEL=INFO  # DEBUG for more detail
+    networks:
+      - bonsai-net
+    volumes:
+      - ./api/bonsai_api:/home/worker/app/bonsai_api:z # Mount source, for development!
+    command: 'watchfiles --filter python "bonsai_api cleanup-cache" /home/worker/app/bonsai_api'
 
 
 #networks:

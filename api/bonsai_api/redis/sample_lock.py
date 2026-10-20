@@ -26,27 +26,40 @@ class SampleLockError(Exception):
 
 
 @asynccontextmanager
-async def sample_lock(sample_id: str, ttl: int) -> AsyncIterator[None]:
+async def sample_lock(sample_id: str, ttl: int, wait: bool = True) -> AsyncIterator[bool]:
     """Hold the lock for one sample while the block runs.
 
-    Waits while another request holds it.
+    Yields True when the lock was taken. By default, waits while another
+    request holds it.
 
     :param ttl: Seconds after which Redis releases the lock by itself, so a
         crashed process can't block the sample for good. Waiting gives up
         after the same time.
+    :param wait: If False, don't wait for a busy lock: yield False at once,
+        and run the block without holding the lock. The caller is expected
+        to skip the sample.
     """
     lock = redis.connection.lock(f"{KEY_PREFIX}{sample_id}", timeout=ttl)
     automatically_unlock_at = time.time() + ttl
+    acquired = False
     try:
         # a non-blocking attempt per poll, so waiting doesn't block the event loop
-        while not lock.acquire(blocking=False):
+        while not (acquired := lock.acquire(blocking=False)):
+            if not wait:
+                break
+
             if time.time() > automatically_unlock_at:
                 raise SampleLockError(f"Timed out waiting for the lock on sample '{sample_id}'")
             await asyncio.sleep(POLL_SECONDS)
     except RedisError as error:
         raise SampleLockError(f"Could not take the lock on sample '{sample_id}': {error}") from error
+
+    if not acquired:
+        yield False
+        return
+
     try:
-        yield
+        yield True
     finally:
         try:
             lock.release()

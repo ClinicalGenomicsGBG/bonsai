@@ -27,6 +27,11 @@ LimsConfigPath = Annotated[
     AfterValidator(_validate_yaml_file)
 ]
 
+LogLevel = Annotated[
+    Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    BeforeValidator(str.upper),
+]
+
 
 class SmtpConfig(BaseSettings):
     """SMTP server configuration."""
@@ -74,6 +79,13 @@ class Settings(BaseSettings):
     # What POST /samples/ does when the sample_id already exists:
     # "reject" (409 conflict) or "replace" (in MongoDB, HCP and the HCI mock).
     sample_duplicate_policy: Literal["reject", "replace"] = "reject"
+    sample_cache_ttl_minutes: int = 60
+    cache_cleanup_interval_seconds: int = 10  # was: 6000
+    # cache_cleanup_batch_size: int = 0
+    # Seconds to wait for a cleanup operation to finish before
+    #   automatically releasing the redis lock
+    cache_cleanup_lock_ttl_seconds: int = 10
+    cache_cleanup_log_level: LogLevel = "INFO"
 
     # Reference genome and annotations for IGV
     reference_genomes_dir: str = "/tmp/reference_genomes"

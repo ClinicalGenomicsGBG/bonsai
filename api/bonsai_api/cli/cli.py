@@ -4,10 +4,11 @@ import asyncio
 from bson import json_util
 import pathlib
 from io import StringIO, TextIOWrapper
+import logging
 from logging import getLogger
 from typing import Any, Callable, Literal
-
 import click
+from bonsai_api.config import settings
 from bonsai_api.__version__ import VERSION as version
 from bonsai_api.auth import generate_random_pwd
 from bonsai_api.config import USER_ROLES
@@ -18,12 +19,19 @@ from bonsai_api.crud.user import create_user as create_user_in_db
 from bonsai_api.crud.utils import get_deprecated_records
 from bonsai_api.db import verify
 from bonsai_api.db.index import INDEXES
-from bonsai_api.db.utils import get_db_connection
+from bonsai_api.db.utils import get_db_connection, open_db, db
 from bonsai_api.lims_export.export import lims_rs_formatter, serialize_lims_results
 from bonsai_api.lims_export.config import InvalidFormatError, load_export_config
 from bonsai_api.models.group import GroupInCreate, pred_res_cols
 from bonsai_api.models.sample import MultipleSampleRecordsResponseModel, SampleInCreate
 from bonsai_api.models.user import UserInputCreate
+from bonsai_api.services import (
+    CacheCleanupService,
+    CachedSampleService,
+    SampleService,
+    HciMockService,
+)
+# from bonsai_api.services.dependencies import get_cache_cleanup_service
 from prp.models.sample import SCHEMA_VERSION
 from prp.migration.convert import migrate_result
 from pymongo.errors import DuplicateKeyError
@@ -336,3 +344,42 @@ def migrate_database(backup_path: pathlib.Path | None):
                     raise ValueError(f"Sample '{upd_sample.sample_id}' was not updated.")
         finally:
             click.secho("Finished migrating the database", fg="green")
+
+
+@cli.command("cleanup-cache")
+@click.option("--interval", default=settings.cache_cleanup_interval_seconds)
+@click.option("--once", is_flag=True)
+def cleanup_cache(interval, once):
+    # logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    # level from settings.cache_cleanup_log_level, e.g. CACHE_CLEANUP_LOG_LEVEL=DEBUG
+    logging.basicConfig(
+        level=settings.cache_cleanup_log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
+    async def main():
+        open_db()
+        cached_samples_service = CachedSampleService(db)
+        hci_mock_service = HciMockService(db)
+        cleanup_service = CacheCleanupService(
+            SampleService(
+                db,
+                cached_samples_service,
+                hci_mock_service,
+            ),
+            cached_samples_service,
+        )
+
+        if once:
+            LOG.info("cleanup-cache: running sample cache cleanup job")
+            await cleanup_service.run_cleanup()
+        else:
+            LOG.debug("cleanup-cache: running sample cache cleanup job every %d s.", interval)
+            while True:
+                try:
+                    await cleanup_service.run_cleanup()
+                except Exception:  # pylint: disable=broad-except
+                    LOG.exception("cleanup-cache: failed, trying again in %d s", interval)
+                await asyncio.sleep(interval)
+
+    asyncio.run(main())
