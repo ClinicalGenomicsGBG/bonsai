@@ -86,6 +86,13 @@ export interface SamplesDetails {
   created_at: string;
 }
 
+export interface BasketSample {
+  sample_id: string;
+  sample_name: string;
+  assay?: string;
+  [key: string]: unknown;
+}
+
 export interface ApiSampleQcStatus {
   status: string;
   action: string | null;

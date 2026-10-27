@@ -36,6 +36,7 @@ from ..redis.minhash import (
 from ..utils import format_error_message, get_timestamp
 from .errors import EntryNotFound, UpdateDocumentError
 
+
 LOG = logging.getLogger(__name__)
 CURRENT_SCHEMA_VERSION = 1
 
@@ -477,6 +478,48 @@ async def get_sample(db: Database, sample_id: str) -> SampleInDatabase:
         **db_obj,
     )
     return sample_obj
+
+
+###################
+from NGPIris import HCPHandler
+import json
+import os
+
+
+async def download_sample_result(sample_id: str) -> PipelineResult:
+    """Download the canonical Bonsai input JSON for a sample.
+
+    Replace this placeholder with the external lookup/download implementation.
+    """
+    local_path = f'/home/worker/app/bonsai_api/downloads/{sample_id}_result.json'
+    if not os.path.exists(local_path):
+        hcp_h = HCPHandler("/home/worker/app/bonsai_api/hci_1.json")
+        hcp_h.mount_bucket('bonsai')
+        hcp_h.download_file(f"/index_test_1/{sample_id}_result.json", local_path)
+
+    with open(local_path, 'r') as inp:
+        data = json.load(inp)
+    sample = PipelineResult(**data)
+    return sample
+
+    #raise NotImplementedError(f"External sample download not implemented: {sample_id}")
+
+
+async def ensure_sample_in_database(
+    db: Database, sample_id: str
+) -> SampleInDatabase:
+    """Return a sample, importing its canonical JSON first if it is missing."""
+    try:
+        test = await get_sample(db, sample_id)
+        #return await get_sample(db, sample_id)
+        print(test)
+        return test
+    except EntryNotFound:
+        sample = await download_sample_result(sample_id)
+
+    return await create_sample(db, sample)
+#################
+
 
 
 async def add_comment(

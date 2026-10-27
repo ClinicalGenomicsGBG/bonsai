@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     """Bonsai frontend configuration."""
 
     api_internal_url: str = Field("http://api:8000", description="Internal container-container URL to the Bonsai API.")
-    api_external_url: str = Field("http://localhost:8001", description="External URL to the Bonsai API.")
+    api_external_url: str = Field("http://192.168.122.48:8001", description="External URL to the Bonsai API.")
 
     tz: TimeZoneName = Field("Etc/UTC", alias="timezone")
 
