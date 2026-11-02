@@ -5,7 +5,7 @@ import ssl
 from typing import Annotated, Literal
 from pathlib import Path
 
-from pydantic import AfterValidator, Field, FilePath
+from pydantic import AfterValidator, BeforeValidator, Field, FilePath
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ssl_defaults = ssl.get_default_verify_paths()
