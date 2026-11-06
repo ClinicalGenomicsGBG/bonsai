@@ -159,3 +159,6 @@ reports/*
 # Bonsai specific
 bonsai.min.js
 *.lock
+
+# HCP & HCI
+hci_1.json

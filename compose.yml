@@ -14,12 +14,12 @@ services:
       #- ../data/mongodb:/data/db:z
       - "${DATA_ROOT}/mongodb:/data/db:z"
   api:
-    userns_mode: keep-id
+    userns_mode: "keep-id:uid=1001,gid=1001"
     user: "1001:1001"
     env_file:
       - "${ENV_ROOT}/api.env"
     environment:
-      - ALLOWED_ORIGINS=[]
+      - ALLOWED_ORIGINS=["http://localhost:8000"]  # Only for dev, leave empty for NGP deployment
       - HCP_UPLOAD_ENABLED=true
       - HCP_UPLOAD_TIMEOUT=60
     depends_on:
@@ -31,8 +31,9 @@ services:
       - "${DATA_ROOT}/tmp/reference_genomes:/tmp/reference_genomes:U,z"
       - "${DATA_ROOT}/tmp/annotations:/tmp/annotations:U,z"
       #- /ngp_appstorage_remapped/GMC-joint:/ngp/appstorage/bonsai/GMC-joint:ro
+      - "${CRED_ROOT}/hci_1.json:/home/worker/app/bonsai_api/hci_1.json:ro,z"
   frontend:
-    userns_mode: keep-id
+    userns_mode: "keep-id:uid=1001,gid=1001"
     user: "1001:1001"
     env_file:
       - "${ENV_ROOT}/frontend.env"
@@ -43,6 +44,15 @@ services:
     volumes:
       - ./frontend/bonsai_app:/home/worker/app/bonsai_app:z # Mount source, for development!
       - "${DATA_ROOT}/debug/frontend/dumps:/debug_dumps:U,z"
+      - "${CRED_ROOT}/hci_1.json:/home/worker/app/bonsai_app/hci_1.json:ro,z"
+  frontend_js:
+    container_name: frontend_js
+    image: docker.io/library/node:lts-alpine   # the same Node as frontend/Dockerfile
+    working_dir: /usr/src/app
+    volumes:
+      - ./frontend:/usr/src/app:z
+    command: sh -c "npm install --no-audit --no-fund && npx webpack --watch --output-path bonsai_app/blueprints/public/static"
+    restart: on-failure
   # todo: test ldap test
   minhash_service:
     #environment:
@@ -75,7 +85,8 @@ services:
     restart: on-failure
     volumes:
       - ./hci_hcp_service/hci_hcp_service:/home/worker/app/hci_hcp_service:ro,z # For development
-      - "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:U,Z,ro"
+      #- "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:U,Z,ro"
+      - "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:ro,z"
     depends_on:
       - redis
     networks:
