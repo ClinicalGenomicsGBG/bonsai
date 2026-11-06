@@ -218,7 +218,7 @@ async def read_sample(
         #   `sample_obj = await ensure_sample_in_database(db, sample_id)`
         sample_obj = await samples.get(sample_id, username)
         #sample_obj = await get_sample(db, sample_id)
-        sample_obj = await ensure_sample_in_database(db, sample_id)
+        # sample_obj = await ensure_sample_in_database(db, sample_id)
     except EntryNotFound as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

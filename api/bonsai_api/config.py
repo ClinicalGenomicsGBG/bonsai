@@ -2,8 +2,8 @@
 
 import os
 import ssl
-from typing import Annotated, Literal
 from pathlib import Path
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BeforeValidator, Field, FilePath
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     hcp_upload_enabled: bool = True
     hcp_upload_timeout: int = 60
     hcp_download_timeout: int = 60  # seconds to wait for a Sample to download from HCP
+    hci_index_name: str = "bonsai_index_1"
+    hci_credentials_path: str = "/home/worker/app/bonsai_api/hci_1.json"
+    # Key of a sample's JASEN result in HCP. Test data only: in production the
+    # key must be looked up in HCI instead.
+    hcp_jasen_result_key_template: str = "index_test_1/{sample_id}_result.json"
     hci_mock_database_name: str = "hci_mock"
     # What POST /samples/ does when the sample_id already exists:
     # "reject" (409 conflict) or "replace" (in MongoDB, HCP and the HCI mock).

@@ -1,28 +1,29 @@
 """Sample documents: cached in MongoDB, with the permanent copy in HCP."""
 
 import logging
-
-from bson import ObjectId
-from prp.models import PipelineResult
-from pymongo.errors import DuplicateKeyError
 from typing import Any
 
+from bson import ObjectId
+from NGPIris import HCIHandler
+from prp.models import PipelineResult
+from pydantic import ValidationError
+from pymongo.errors import DuplicateKeyError
+
 from ..config import settings
+from ..crud.errors import EntryNotFound
 from ..crud.sample import create_sample as create_sample_record
 from ..crud.sample import get_sample, get_samples_summary
 from ..db import Database
 from ..models.sample import SampleInDatabase
 from ..redis.hcp import HcpUploadError, download_sample_document, upload_sample_document
-from ..redis.sample_lock import sample_lock, SampleLockError
-from .cached_sample_service import CachedSampleService
-from .hci_mock_service import HciMockService
 from ..redis.minhash import (
     schedule_remove_genome_signature,
     schedule_remove_genome_signature_from_index,
 )
-from ..utils import get_timestamp
-from ..crud.errors import EntryNotFound
-
+from ..redis.sample_lock import SampleLockError, sample_lock
+from ..utils import get_timestamp, hcp_location
+from .cached_sample_service import CachedSampleService
+from .hci_mock_service import HciMockService
 
 LOG = logging.getLogger(__name__)
 
@@ -177,17 +178,93 @@ class SampleService:
 
 
     async def _fetch_sample_from_hcp(self, sample_id: str) -> SampleInDatabase:
-        """Fetch sample from the HCP and insert into the MongoDB,
-        the caller holds the Redis lock"""
-        hci_entry = await self._hci_mock.get(sample_id)
-        if hci_entry is None:
-            raise SampleNotFoundError(f"Sample '{sample_id} is neither cached nor in HCP")
-        LOG.info("Fetching '%s' from HCP (key: '%s')", sample_id, entry.hcp_key)
-        document = await download_sample_document(entry.hcp_key)
-        # Insert the downloaded sample into the local DB and cache
-        await self._restore(sample_id, document)
+        # """Fetch sample from the HCP and insert into the MongoDB,
+        # the caller holds the Redis lock"""
+        # hci_entry = await self._hci_mock.get(sample_id)
+        # if hci_entry is None:
+        #     raise SampleNotFoundError(f"Sample '{sample_id}' is neither cached nor in HCP")
+        # LOG.info("Fetching '%s' from HCP (key: '%s')", sample_id, hci_entry.hcp_key)
+        # document = await download_sample_document(hci_entry.hcp_key)
+        # # Insert the downloaded sample into the local DB and cache
+        # await self._restore(sample_id, document)
+        # """Download the sample's JASEN result from HCP and store it in MongoDB.
+        # The object key is built from settings.hcp_jasen_result_key_template.
+        # That only works for test data; in production the key must be looked up
+        # in HCI. The caller holds the Redis lock.
+        """Find the sample's JASEN result through HCI, download it from HCP and store it in MongoDB.
+
+        The caller holds the Redis lock.
+
+        :raises SampleNotFoundError: HCI has no result for the sample.
+        """
+        # Option A, for test data whose files follow a naming pattern:
+        # hcp_key = settings.hcp_jasen_result_key_template.format(sample_id=sample_id)
+
+        # Find the sample in HCI
+        hci = HCIHandler(settings.hci_credentials_path)
+        hci.request_token()
+        query = {
+            "indexName": settings.hci_index_name,
+            "queryString": f'rootSample_name:"{sample_id}"',
+            "itemsToReturn": 10,
+        }
+        # NOTE: blocks the API while HCI answers; to let other requests run meanwhile,
+        # use the next line instead (needs "import asyncio").
+        response = hci.raw_query(query)
+        # response = await asyncio.to_thread(hci.raw_query, query)
+        LOG.info(
+            "For sample_id: '%s', HCI response hitCount: '%d'",
+            sample_id,
+            response.get("hitCount", 0),
+        )
+        if response.get("hitCount", 0) > len(response.get("results", [])):
+            # more matches than returned: fetch them all
+            response = hci.raw_query(query | {"itemsToReturn": response["hitCount"]})
+
+        # Only exact matches, so that e.g. "S1" doesn't pick up "S10"
+        results = [
+            result for result in response.get("results", [])
+            if sample_id in result["metadata"].get("rootSample_name", [])
+        ]
+        if not results:
+            LOG.warning("Sample '%s' not found in HCI index '%s'", sample_id, settings.hci_index_name)
+            raise SampleNotFoundError(f"Sample '{sample_id}' not found in HCI")
+        if len(results) > 1:
+            LOG.warning("HCI has %d results for sample '%s'; using the first", len(results), sample_id)
+
+        hcp_key = hcp_location(results[0]["metadata"]["HCI_URI"][0])["file_path"]
+        LOG.info("Fetching '%s' from HCP (key: '%s')", sample_id, hcp_key)
+        document = await download_sample_document(hcp_key)
+        # Insert the downloaded sample into the local DB
+        await self._import_jasen_result(sample_id, document)
         # Get the document from the local DB
         sample = await get_sample(self._db, sample_id)
+        return sample
+
+
+    async def _import_jasen_result(self, sample_id: str, document: dict) -> None:
+        """Store a JASEN result from HCP as the sample's only MongoDB document.
+
+        The caller holds the Redis lock.
+
+        :raises SampleRestoreError: The file isn't a valid JASEN result, or it
+            belongs to another sample.
+        """
+        try:
+            result = PipelineResult(**document)
+        except ValidationError as error:
+            first = error.errors()[0]
+            raise SampleRestoreError(
+                f"The HCP file for '{sample_id}' is not a valid JASEN result "
+                f"({error.error_count()} errors, first: {first['loc']}: {first['msg']})"
+            ) from error
+        if result.sample_id != sample_id:
+            raise SampleRestoreError(
+                f"The HCP file for '{sample_id}' contains sample '{result.sample_id}'"
+            )
+        # one document per sample_id: drop the local versions the HCP file replaces
+        await self._db.sample_collection.delete_many({"sample_id": sample_id})
+        await create_sample_record(self._db, result)
 
 
     async def _exists(self, sample_id: str) -> bool:
@@ -195,6 +272,7 @@ class SampleService:
         if await self._db.sample_collection.count_documents({"sample_id": sample_id}, limit=1):
             return True
         return await self._hci_mock.get(sample_id) is not None
+
 
     async def _register_in_hci_mock(
         self,
