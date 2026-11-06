@@ -1,18 +1,17 @@
 """Define redis tasks."""
-import logging
 import json
+import logging
 import os
 import tempfile
 import time
-
-from botocore.config import Config
-import boto3
-import botocore.exceptions
-from NGPIris import HCPHandler
-from NGPIris.hcp.exceptions import ObjectAlreadyExistError
-
 from dataclasses import dataclass
 from string import Formatter
+
+import boto3
+import botocore.exceptions
+from botocore.config import Config
+from NGPIris import HCPHandler
+from NGPIris.hcp.exceptions import ObjectAlreadyExistError
 
 LOG = logging.getLogger(__name__)
 if not LOG.handlers:  #rq only configures its own logger
@@ -159,14 +158,23 @@ def upload_sample(document:str, deadline: float, overwrite: bool = False) -> dic
 
 
 def download_sample(hcp_key: str, deadline: float) -> str:
-    """
-    todo
+    """Download a sample document from HCP and return its content.
+
+    :param hcp_key: Key of the object in the bucket set by HCP_BUCKET, as
+        recorded in the sample's HCI (mock) entry.
+    :param deadline: Unix time after which the API no longer waits for this
+        job; a job that starts later does nothing.
+    :return: The object's content as UTF-8 text (the sample's JSON).
+    :raises DeadlineExceeded: The job started after the deadline.
+    :raises ConnectionError: HCP isn't reachable.
+    :raises botocore.exceptions.ClientError: The object doesn't exist, or
+        access was denied.
     """
     if time.time() > deadline:
         raise DeadlineExceeded("Download started after the API deadline; object not downloaded")
 
     config = load_settings()
     hcp = connect(config)
-    document = hcp.s3_client.get_object(Bucket=config.bucket, Key=key)["Body"].read().decode("utf-8")
-    LOG.info("Downloaded '%s' from bucket '%s'", key, config.bucket)
+    document = hcp.s3_client.get_object(Bucket=config.bucket, Key=hcp_key)["Body"].read().decode("utf-8")
+    LOG.info("Downloaded '%s' from bucket '%s'", hcp_key, config.bucket)
     return document

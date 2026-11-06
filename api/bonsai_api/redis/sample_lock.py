@@ -8,8 +8,10 @@ the same time. Redis makes taking the lock atomic across all API processes.
 import asyncio
 import logging
 import time
+
+# from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from redis.exceptions import LockError, RedisError
 
@@ -24,9 +26,9 @@ POLL_SECONDS = 0.5
 class SampleLockError(Exception):
     """The lock for a sample could not be taken (Redis unreachable, or waited too long)."""
 
-
 @asynccontextmanager
-async def sample_lock(sample_id: str, ttl: int, wait: bool = True) -> AsyncIterator[bool]:
+# async def sample_lock(sample_id: str, ttl: int, wait: bool = True) -> AsyncIterator[bool]:
+async def sample_lock(sample_id: str, ttl: int, wait: bool = True) -> AsyncGenerator[bool, None]:
     """Hold the lock for one sample while the block runs.
 
     Yields True when the lock was taken. By default, waits while another
@@ -67,4 +69,3 @@ async def sample_lock(sample_id: str, ttl: int, wait: bool = True) -> AsyncItera
             LOG.warning("Lock on sample '%s' was already released: %s", sample_id, error)
         except RedisError as error:
             LOG.warning("Could not release the lock on sample '%s': %s", sample_id, error)
-

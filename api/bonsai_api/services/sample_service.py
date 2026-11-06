@@ -39,7 +39,7 @@ class RollbackError(Exception):
 
 
 class SampleNotFoundError(EntryNotFound):
-    """The sample is neither chached in MongoDB nor recorded in the HCI mock"""
+    """The sample is neither cached in MongoDB nor recorded in the HCI mock"""
 
 
 class SampleRestoreError(Exception):
@@ -116,7 +116,7 @@ class SampleService:
         return db_obj
 
     async def _read_if_cached(self, sample_id: str) -> SampleInDatabase | None:
-        """The sampple from MongoDB if cached_sample has it and the document exists, else None"""
+        """The sample from MongoDB if cached_sample has it and the document exists, else None"""
         sample = await self._cached_samples.get(sample_id)
         if sample is None:
             return None
@@ -125,6 +125,7 @@ class SampleService:
             return await get_sample(self._db, sample_id)
         except EntryNotFound:
             LOG.info("Cache entry for '%s' is stale; no document in MongoDB", sample_id)
+            return None
 
 
     async def get(self, sample_id: str, username: str | None) -> SampleInDatabase:
@@ -146,22 +147,21 @@ class SampleService:
 
         if sample is not None:
             LOG.debug("Sample with '%s' found in cache", sample_id)
-            self._touch(sample_id, username)
-            LOG.debug("===== Sample START =====================================")
-            print(sample)
-            LOG.debug("===== Sample START =====================================")
+            await self._touch(sample_id, username)
+            # LOG.debug("===== Sample START =====================================")
+            # print(sample)
+            # LOG.debug("===== Sample START =====================================")
             return sample
 
         async with sample_lock(sample_id, settings.hcp_download_timeout + LOCK_MARGIN_SECONDS):
-
             # Another request may have cached the sample while waiting for the lock
-            sample = await self._cached_samples.get(sample_id)
+            sample = await self._read_if_cached(sample_id)
 
             if sample is None:
-                sample = self._fetch_sample_from_hcp(sample_id)
+                sample = await self._fetch_sample_from_hcp(sample_id)
                 # Write the sample to the cached_samples tracker
 
-            self._touch(sample_id, username)
+            await self._touch(sample_id, username)
 
         LOG.debug("Returning sample with id '%s'", sample_id)
         return sample

@@ -58,7 +58,7 @@ from bonsai_api.redis.hcp import (
     HcpDownloadQueueUnavailable,
     HcpDownloadError,
     HcpDownloadTimeout,
-    HcpUploadQueueUnvailable,
+    HcpUploadQueueUnavailable,
     HcpUploadError,
     HcpUploadTimeout,
 )
@@ -167,7 +167,7 @@ async def create_sample(
     except HcpUploadError as hcp_upload_error:
         if isinstance(hcp_upload_error, HcpUploadTimeout):
             code = status.HTTP_504_GATEWAY_TIMEOUT
-        elif isinstance(hcp_upload_error, HcpUploadQueueUnvailable):
+        elif isinstance(hcp_upload_error, HcpUploadQueueUnavailable):
             code = status.HTTP_503_SERVICE_UNAVAILABLE
         else:
             code = status.HTTP_502_BAD_GATEWAY

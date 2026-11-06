@@ -18,7 +18,7 @@ class HcpUploadError(Exception):
 class HcpUploadTimeout(HcpUploadError):
     """The HCP upload worker timed out"""
 
-class HcpUploadQueueUnvailable(HcpUploadError):
+class HcpUploadQueueUnavailable(HcpUploadError):
     """The HCP upload jobs could not be submitted (Redis unreachable)"""
 
 class HcpDownloadError(Exception):
@@ -28,11 +28,11 @@ class HcpDownloadTimeout(HcpDownloadError):
     """The HCP download worker timed out"""
 
 class HcpDownloadQueueUnavailable(HcpDownloadError):
-    """The HCO download jobs could not be submitted (Redis unreachable)"""
+    """The HCP download jobs could not be submitted (Redis unreachable)"""
 
 
 UPLOAD_TASK = "hci_hcp_service.tasks.upload_sample"
-DOWNLOAD_TASK = "hci_hcp_service.tasks_download_sample"
+DOWNLOAD_TASK = "hci_hcp_service.tasks.download_sample"
 # Extra time the API keeps polling after the deadline it gives the worker.
 # Covers the polling interval and small clock differences between containers.
 GRACE_SECONDS = 5
@@ -85,7 +85,7 @@ async def _wait_for_job(
         await asyncio.sleep(POLL_SECONDS)
 
     raise timeout_error(
-        "The HCP {kind} worker did not return a result within "
+        f"The HCP {kind} worker did not return a result within "
         f"{timeout_seconds} s for job with id: '{job.id}'"
     )
 
@@ -106,7 +106,7 @@ async def upload_sample_document(document: dict[str, Any], overwrite: bool = Fal
             failure_ttl=86400,
         )
     except RedisError as error:
-        raise HcpUploadQueueUnvailable(f"Could not submit upload job: {error}") from error
+        raise HcpUploadQueueUnavailable(f"Could not submit upload job: {error}") from error
 
     document = await _wait_for_job(
         job,
@@ -115,7 +115,7 @@ async def upload_sample_document(document: dict[str, Any], overwrite: bool = Fal
         "upload",
         HcpUploadError,
         HcpUploadTimeout,
-        HcpUploadQueueUnvailable,
+        HcpUploadQueueUnavailable,
     )
 
     return document
@@ -131,7 +131,7 @@ async def download_sample_document(hcp_key: str) -> dict[str, Any]:
             hcp_key=hcp_key,
             deadline=timeout_deadline,
             job_timeout=settings.hcp_download_timeout,
-            result_ttl=3600,
+            result_ttl=60,
             failure_ttl=86400,
     )
     except RedisError as error:
@@ -144,7 +144,7 @@ async def download_sample_document(hcp_key: str) -> dict[str, Any]:
         "download",
         HcpDownloadError,
         HcpDownloadTimeout,
-        HcpDownloadQueueUnvailable,
+        HcpDownloadQueueUnavailable,
     )
 
     return json.loads(document)
