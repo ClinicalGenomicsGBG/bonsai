@@ -4,9 +4,10 @@ import logging
 from pathlib import Path
 from typing import Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Security, status
 from pydantic import ConfigDict, Field
 
+from ..config import settings
 from ..crud.errors import EntryNotFound
 from ..crud.sample import (
     TypingProfileOutput,
@@ -15,9 +16,11 @@ from ..crud.sample import (
     get_ska_index_path_for_samples,
     get_typing_profiles,
 )
+from ..crud.user import get_current_active_user
 from ..db import Database, get_db
 from ..models.base import RWModel
 from ..models.cluster import DistanceMethod, TypingMethod
+from ..models.user import UserOutputDatabase
 from ..redis import ClusterMethod, MsTreeMethods, SubmittedJob
 from ..redis.allele_cluster import (
     schedule_cluster_samples as schedule_allele_cluster_samples,
@@ -25,6 +28,11 @@ from ..redis.allele_cluster import (
 from ..redis.minhash import schedule_add_genome_signature_to_index
 from ..redis.minhash import schedule_cluster_samples as schedule_minhash_cluster_samples
 from ..redis.ska import schedule_cluster_samples as schedule_ska_cluster_samples
+from ..redis.hcp import HcpDownloadError, HcpDownloadQueueUnavailable, HcpDownloadTimeout
+from ..redis.sample_lock import SampleLockError
+from ..services import SampleService
+from ..services.dependencies import get_sample_service
+from ..services.sample_service import SampleRestoreError
 
 LOG = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,6 +42,9 @@ DEFAULT_TAGS = [
 ]
 READ_PERMISSION = "cluster:read"
 WRITE_PERMISSION = "cluster:write"
+# No role has the cluster:* permissions, so clustering requires samples:read,
+# like reading the samples it clusters.
+SAMPLES_READ_PERMISSION = "samples:read"
 
 
 class ClusterInput(RWModel):  # pylint: disable=too-few-public-methods
@@ -43,7 +54,9 @@ class ClusterInput(RWModel):  # pylint: disable=too-few-public-methods
     :type RWModel: Generic basemodel for read/ write
     """
 
-    sample_ids: list[str] = Field(..., min_length=2, alias="sampleIds")
+    sample_ids: list[str] = Field(
+        ..., min_length=2, max_length=settings.cluster_max_samples, alias="sampleIds"
+    )
     distance: DistanceMethod | None = None
     method: ClusterMethod | MsTreeMethods
 
@@ -60,6 +73,10 @@ async def cluster_samples(
     typing_method: TypingMethod,
     cluster_input: ClusterInput,
     db: Database = Depends(get_db),
+    samples: SampleService = Depends(get_sample_service),
+    current_user: UserOutputDatabase = Security(
+        get_current_active_user, scopes=[SAMPLES_READ_PERMISSION]
+    ),
 ) -> SubmittedJob:
     """Cluster samples on their cgmlst profile.
 
@@ -74,9 +91,43 @@ async def cluster_samples(
     :rtype: SubmittedJob
     """
     ####
-    for sample_id in cluster_input.sample_ids:
-        await ensure_sample_in_database(db, sample_id)
+    # for sample_id in cluster_input.sample_ids:
+    #     await ensure_sample_in_database(db, sample_id)
+    # Make sure every sample is cached, fetching missing ones from HCP with the
+    # same lock and cache bookkeeping as GET /samples/{sample_id}.
     ####
+
+    try:
+        username = current_user.username if current_user else None
+        for sample_id in cluster_input.sample_ids:
+            await samples.get(sample_id, username)
+    except EntryNotFound as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except SampleRestoreError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(error),
+        ) from error
+    except SampleLockError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    except HcpDownloadError as hcp_download_error:
+        if isinstance(hcp_download_error, HcpDownloadTimeout):
+            code = status.HTTP_504_GATEWAY_TIMEOUT
+        elif isinstance(hcp_download_error, HcpDownloadQueueUnavailable):
+            code = status.HTTP_503_SERVICE_UNAVAILABLE
+        else:
+            code = status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(
+            status_code=code,
+            detail=f"Sample '{sample_id}' not cached, HCP download failed: {hcp_download_error}",
+        ) from hcp_download_error
+
     if typing_method == TypingMethod.MINHASH:
         job = schedule_minhash_cluster_samples(
             cluster_input.sample_ids, cluster_input.method

@@ -295,7 +295,13 @@ async def delete_sample(
 
 @router.post("/samples/{sample_id}/metadata", tags=[RouterTags.SAMPLE, RouterTags.META])
 async def add_sample_metadata(
-    sample_id: str, metadata: list[InputMetaEntry], db: Database = Depends(get_db)) -> bool:
+    sample_id: str,
+    metadata: list[InputMetaEntry],
+    db: Database = Depends(get_db),
+    current_user: UserOutputDatabase = Security(  # pylint: disable=unused-argument
+        get_current_active_user, scopes=[WRITE_PERMISSION]
+    ),
+) -> bool:
     """Add metadata to an existing sample."""
     try:
         resp = await add_metadata_to_sample(sample_id=sample_id, metadata=metadata, db=db)
@@ -311,6 +317,9 @@ async def create_genome_signatures_sample(
     sample_id: str,
     signature: Annotated[bytes, File()],
     db: Database = Depends(get_db),
+    current_user: UserOutputDatabase = Security(  # pylint: disable=unused-argument
+        get_current_active_user, scopes=[WRITE_PERMISSION]
+    ),
 ) -> dict[str, str]:
     """Entrypoint for uploading a genome signature to the database."""
     # verify that sample are in database
@@ -352,6 +361,9 @@ async def add_ska_index_to_sample(
     sample_id: str,
     index: str,
     db: Database = Depends(get_db),
+    current_user: UserOutputDatabase = Security(  # pylint: disable=unused-argument
+        get_current_active_user, scopes=[WRITE_PERMISSION]
+    ),
 ) -> dict[str, str]:
     """Entrypoint for associating a SKA index with the sample."""
     # verify that sample are in database
@@ -493,6 +505,9 @@ async def add_vcf_to_sample(
     sample_id: str,
     vcf: Annotated[bytes, File()],
     db: Database = Depends(get_db),
+    current_user: UserOutputDatabase = Security(  # pylint: disable=unused-argument
+        get_current_active_user, scopes=[WRITE_PERMISSION]
+    ),
 ) -> dict[str, str]:
     """Entrypoint for uploading varants in vcf format to the sample."""
     # verify that sample are in database

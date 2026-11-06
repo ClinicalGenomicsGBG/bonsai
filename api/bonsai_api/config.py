@@ -91,6 +91,8 @@ class Settings(BaseSettings):
     #   automatically releasing the redis lock
     cache_cleanup_lock_ttl_seconds: int = 10
     cache_cleanup_log_level: LogLevel = "INFO"
+    # Most samples one clustering request may include; None means no limit
+    cluster_max_samples: int | None = None
 
     # Reference genome and annotations for IGV
     reference_genomes_dir: str = "/tmp/reference_genomes"
