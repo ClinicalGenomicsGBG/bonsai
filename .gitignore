@@ -119,6 +119,7 @@ dev.env
 staging.env
 production.env
 prod.env
+compose.ngp.*.env
 
 # Spyder project settings
 .spyderproject

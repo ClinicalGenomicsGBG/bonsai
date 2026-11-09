@@ -79,7 +79,8 @@ services:
     build:
       context: hci_hcp_service
       network: host
-    environment: PYTHONPATH=/home/worker/app
+    environment:
+      - PYTHONPATH=/home/worker/app
     env_file:
       - "${ENV_ROOT}/hci_hcp.env"
     restart: on-failure

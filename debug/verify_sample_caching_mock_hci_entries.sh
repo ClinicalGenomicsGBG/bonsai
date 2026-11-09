@@ -102,7 +102,7 @@ printf "print_hci_entry_summary: %s\n" "$print_hci_entry_summary"
 # -------------------------------------------------------
 
 
-PC='podman-compose --in-pod=false --env-file development.env -f docker-compose.yml -f compose.yml'
+PC='podman-compose --in-pod=false --env-file compose.ngp.dev.env -f compose.ngp.dev.yml'
 
 # SAMPLE_ID="${1:-test_1791383548-20261007-1632}"
 SAMPLE_ID="$sample_id"
