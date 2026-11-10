@@ -27,8 +27,8 @@ services:
   mongodb:
     image: mongo:4.4.22
     container_name: bonsai_mongodb
-    ports:
-      - "27017:27017"
+#    ports:
+#      - "27017:27017"
 #    expose:
 #      - "27017"
     networks:
