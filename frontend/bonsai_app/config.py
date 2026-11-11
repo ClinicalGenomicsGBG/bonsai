@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     api_internal_url: str = Field("http://api:8000", description="Internal container-container URL to the Bonsai API.")
     api_external_url: str = Field("http://localhost:8001", description="External URL to the Bonsai API.")
+    hci_credentials_path: str = Field(
+        ..., description="HCI credentials file inside the container. Required: set by the compose files."
+    )
 
     tz: TimeZoneName = Field("Etc/UTC", alias="timezone")
 

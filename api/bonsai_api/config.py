@@ -76,7 +76,8 @@ class Settings(BaseSettings):
     hcp_upload_timeout: int = 60
     hcp_download_timeout: int = 60  # seconds to wait for a Sample to download from HCP
     hci_index_name: str = "bonsai_index_1"
-    hci_credentials_path: str = "/home/worker/app/bonsai_api/hci_1.json"
+    # HCI credentials file inside the container. Required: set by the compose files.
+    hci_credentials_path: str
     # Key of a sample's JASEN result in HCP. Test data only: in production the
     # key must be looked up in HCI instead.
     hcp_jasen_result_key_template: str = "index_test_1/{sample_id}_result.json"

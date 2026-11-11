@@ -3,6 +3,8 @@ import re
 
 from NGPIris import HCIHandler
 
+from .config import settings
+
 
 SEARCH_FIELDS = ["rootSample_name", "rootLims_id", "sequencingRun_id", "pipelineAssay"]
 PIECES = re.compile(r"\w+")  # letters, digits and _: what these fields keep together
@@ -74,7 +76,7 @@ def contains(result: dict, term: str, fields: list[str] = SEARCH_FIELDS) -> bool
 
 
 def get_hci_samples(term: str, items: int = 500):
-    h = HCIHandler("/home/worker/app/bonsai_app/hci_1.json")
+    h = HCIHandler(settings.hci_credentials_path)
     #get_token
     h.request_token()
     #resp = h.raw_query(

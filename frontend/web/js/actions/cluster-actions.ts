@@ -75,6 +75,7 @@ export async function clusterSamples(
   }
   // submit job to API
   showSpinner(btn);
+  throwSmallToast(`Downloading samples: ${sampleIds.length}`, "info")
   const jobInfo = await api.clusterSamples(typingMethodEnum, body);
   throwSmallToast(`Clustering samples: ${sampleIds.length}`, "info");
   // start polling for updates

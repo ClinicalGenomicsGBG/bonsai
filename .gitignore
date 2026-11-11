@@ -163,3 +163,8 @@ bonsai.min.js
 
 # HCP & HCI
 hci_1.json
+hci_2.json
+hci_hcp_credentials.json
+
+# Vim swap files
+.*.sw?

@@ -45,6 +45,7 @@ services:
       - bonsai-net
 
   api:
+    image: localhost/bonsai-api:prod
     container_name: api
     build:
       context: api
@@ -73,6 +74,7 @@ services:
       - DB_HOST=mongodb
       - HCP_UPLOAD_ENABLED=true
       - HCP_UPLOAD_TIMEOUT=60
+      - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json
     networks:
       - bonsai-net
     # no command: the image's own is used (uvicorn without --reload, see api/Dockerfile)
@@ -81,9 +83,10 @@ services:
       - "${DATA_ROOT}/tmp/reference_genomes:/tmp/reference_genomes:U,z"
       - "${DATA_ROOT}/tmp/annotations:/tmp/annotations:U,z"
       #- /ngp_appstorage_remapped/GMC-joint:/ngp/appstorage/bonsai/GMC-joint:ro
-      - "${CRED_ROOT}/hci_1.json:/home/worker/app/bonsai_api/hci_1.json:ro,z"
+      - "${CRED_ROOT}/${HCI_HCP_CREDENTIALS_FILE}:/run/secret/hci_hcp_credentials.json:ro,z"
 
   frontend:
+    image: localhost/bonsai-frontend:prod
     container_name: frontend
     build:
       context: frontend
@@ -102,17 +105,19 @@ services:
       - FLASK_APP=bonsai_app.app:create_app
       - FLASK_ENV=development
       - TZ=Europe/Stockholm
+      - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json
       - TESTING=True
     networks:
       - bonsai-net
     # command: "flask run --reload --debug --host 0.0.0.0"  # docker-compose.yml's command, overridden
     command: null # Overrides the command in 'docker-compose.yml' which starts a dev server.
     volumes:
-      - "${CRED_ROOT}/hci_1.json:/home/worker/app/bonsai_app/hci_1.json:ro,z"
+      - "${CRED_ROOT}/${HCI_HCP_CREDENTIALS_FILE}:/run/secret/hci_hcp_credentials.json:ro,z"
 
   # todo: test ldap test
 
   minhash_service:
+    image: localhost/bonsai-minhash-service:prod
     container_name: minhash_service
     build:
       context: minhash_service
@@ -131,6 +136,7 @@ services:
     #  - /data/rclone-copy-test:/data/rclone-copy-test:U,z
 
   ska_service:
+    image: localhost/bonsai-ska-service:prod
     container_name: ska_service
     build:
       context: ska_service
@@ -151,6 +157,7 @@ services:
       # rclone copy dest test
 
   allele_cluster_service:
+    image: localhost/bonsai-allele-cluster-service:prod
     container_name: allele_cluster_service
     build:
       context: allele_cluster_service
@@ -162,22 +169,28 @@ services:
       - bonsai-net
 
   hci_hcp_service:
+    image: localhost/bonsai-hci-hcp-service:prod
+    userns_mode: "keep-id:uid=1001,gid=1001"
+    user: "1001:1001"
     container_name: hci_hcp_service
     build:
       context: hci_hcp_service
       network: host
+    environment:
+      - HCP_CREDS_CONTAINER=/run/secret/hci_hcp_credentials.json
     env_file:
       - "${ENV_ROOT}/hci_hcp.env"
     restart: on-failure
     volumes:
       #- "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:U,Z,ro"
-      - "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:ro,z"
+      - "${CRED_ROOT}/${HCI_HCP_CREDENTIALS_FILE}:/run/secret/hci_hcp_credentials.json:ro,z"
     depends_on:
       - redis
     networks:
       - bonsai-net
 
   dr_jan_itor:
+    image: localhost/bonsai-api:prod
     container_name: dr_jan_itor
     logging:
       driver: k8s-file
@@ -199,6 +212,7 @@ services:
       - "${ENV_ROOT}/api.env"
     environment:
       - PYTHONUNBUFFERED=
+      - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json  # required by the API's settings; not mounted, never read here
       - DB_HOST=mongodb
       - CACHE_CLEANUP_LOG_LEVEL=INFO  # DEBUG for more detail
     networks:
