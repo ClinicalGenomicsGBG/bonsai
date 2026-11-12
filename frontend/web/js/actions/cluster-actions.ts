@@ -1,4 +1,4 @@
-import { ApiService, pollJob } from "../api";
+import { ApiError, ApiService, pollJob } from "../api";
 import { throwSmallToast } from "../utils/notification";
 import { ApiJobStatusNewick, ApiClusterInput } from "../types";
 import { ClusterMethod, DistanceMethod, TypingMethod } from "../constants";
@@ -75,8 +75,19 @@ export async function clusterSamples(
   }
   // submit job to API
   showSpinner(btn);
-  throwSmallToast(`Downloading samples: ${sampleIds.length}`, "info")
-  const jobInfo = await api.clusterSamples(typingMethodEnum, body);
+  // Fetching samples that aren't cached can take a while: keep this toast until the request returns
+  const downloadToast = throwSmallToast(`Downloading samples: ${sampleIds.length}`, "info", false);
+  let jobInfo;
+  try {
+    jobInfo = await api.clusterSamples(typingMethodEnum, body);
+  } catch (error) {
+    throwSmallToast(clusterRequestErrorMessage(error), "error", false);  // stays until dismissed
+    hideSpinner(btn);
+    console.log(`Could not start clustering: ${error}`);
+    return;
+  } finally {
+    downloadToast?.hide();
+  }
   throwSmallToast(`Clustering samples: ${sampleIds.length}`, "info");
   // start polling for updates
   try {
@@ -92,4 +103,23 @@ export async function clusterSamples(
     hideSpinner(btn);
     console.log(`A problem occured during clustering, ${error}`);
   }
+}
+
+/** A short, readable reason why the cluster request failed. */
+function clusterRequestErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 504) {
+      return "Timed out while downloading the samples. They may still be downloading; try again in a minute.";
+    }
+    try {
+      const detail = JSON.parse(error.message).detail;
+      if (typeof detail === "string") {
+        return `Could not start clustering: ${detail}`;
+      }
+    } catch (parseError) {
+      // not a JSON error from the API, e.g. an HTML error page from the proxy
+    }
+    return `Could not start clustering (HTTP ${error.status})`;
+  }
+  return "Could not start clustering";
 }

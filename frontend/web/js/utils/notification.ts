@@ -1,11 +1,15 @@
 import * as bootstrap from "bootstrap";
 
-export const throwSmallToast = (message: string, type: string = "info") => {
+export const throwSmallToast = (
+  message: string,
+  type: string = "info",
+  autohide: boolean = true,
+) => {
   // get template toast element
   const toastTemplate = document.getElementById(
     "small-toast-template",
   ) as HTMLTemplateElement | null;
-  if (toastTemplate !== undefined) {
+  if (toastTemplate !== null) {
     // copy new element
     const toastElement = toastTemplate.content
       .querySelector(".toast")
@@ -16,7 +20,7 @@ export const throwSmallToast = (message: string, type: string = "info") => {
     toastContainer.appendChild(toastElement);
 
     // instanciate new toast element
-    const toast = new bootstrap.Toast(toastElement);
+    const toast = new bootstrap.Toast(toastElement, { autohide });
 
     // select button
     const btn = toastElement.querySelector("button");
@@ -43,6 +47,7 @@ export const throwSmallToast = (message: string, type: string = "info") => {
     // add custom error message
     errorMessage.innerText = message;
     toast.show();
+    return toast;
   }
 };
 
