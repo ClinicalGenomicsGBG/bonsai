@@ -100,7 +100,13 @@ export class HttpClient {
     });
 
     if (response.status === 401 && retry) {
-      await this.authService.refreshAuthToken();
+      try {
+        await this.authService.refreshAuthToken();
+      } catch {
+        // The login can't be renewed: report the original 401, whose body
+        // tells whether the API or the proxy in front of it rejected us.
+        throw new ApiError(401, (await response.text()) || "Http error: 401");
+      }
       return this.request<T>(endpoint, options, false);
     }
 

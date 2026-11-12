@@ -105,19 +105,32 @@ export async function clusterSamples(
   }
 }
 
+/** The API's error detail ({"detail": "..."}), or null if the body isn't the API's. */
+function apiErrorDetail(error: ApiError): string | null {
+  try {
+    const detail = JSON.parse(error.message).detail;
+    return typeof detail === "string" ? detail : null;
+  } catch (parseError) {
+    return null; // not a JSON error from the API, e.g. an HTML page from the proxy
+  }
+}
+
 /** A short, readable reason why the cluster request failed. */
 function clusterRequestErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 504) {
+    const detail = apiErrorDetail(error);
+    if (error.status === 401) {
+      // From the API: its login token was rejected. Otherwise: the proxy's session ran out.
+      return detail !== null
+        ? "Your login has expired. Please log out and log in again."
+        : "Your session has expired. Please reload the page.";
+    }
+    if ((error.status === 502 || error.status === 504) && detail === null) {
+      // From a proxy (the API's own errors carry a detail): it gave up while the samples were still being imported
       return "Timed out while downloading the samples. They may still be downloading; try again in a minute.";
     }
-    try {
-      const detail = JSON.parse(error.message).detail;
-      if (typeof detail === "string") {
-        return `Could not start clustering: ${detail}`;
-      }
-    } catch (parseError) {
-      // not a JSON error from the API, e.g. an HTML error page from the proxy
+    if (detail !== null) {
+      return `Could not start clustering: ${detail}`;
     }
     return `Could not start clustering (HTTP ${error.status})`;
   }
