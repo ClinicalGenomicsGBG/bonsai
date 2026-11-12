@@ -4,7 +4,6 @@ import logging
 from typing import Any
 
 from bson import ObjectId
-from NGPIris import HCIHandler
 from prp.models import PipelineResult
 from pydantic import ValidationError
 from pymongo.errors import DuplicateKeyError
@@ -14,6 +13,7 @@ from ..crud.errors import EntryNotFound
 from ..crud.sample import create_sample as create_sample_record
 from ..crud.sample import get_sample, get_samples_summary
 from ..db import Database
+from ..hci_handler import BonsaiHCIHandler
 from ..models.sample import SampleInDatabase
 from ..redis.hcp import HcpUploadError, download_sample_document, upload_sample_document
 from ..redis.minhash import (
@@ -201,7 +201,7 @@ class SampleService:
         # hcp_key = settings.hcp_jasen_result_key_template.format(sample_id=sample_id)
 
         # Find the sample in HCI
-        hci = HCIHandler(settings.hci_credentials_path)
+        hci = BonsaiHCIHandler(settings.hci_credentials_path)
         hci.request_token()
         query = {
             "indexName": settings.hci_index_name,
