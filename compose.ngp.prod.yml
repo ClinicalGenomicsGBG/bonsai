@@ -36,7 +36,7 @@ services:
       - bonsai-net
     volumes:
       #- ../data/mongodb:/data/db:z
-      - "${DATA_ROOT}/mongodb:/data/db:z"
+      - "${DATA_ROOT:?DATA_ROOT must be set in the compose env file}/mongodb:/data/db:z"
 
   redis:
     container_name: redis
@@ -67,7 +67,7 @@ services:
       start_period: 30s
       timeout: 10s
     env_file:
-      - "${ENV_ROOT}/api.env"
+      - "${ENV_ROOT:?ENV_ROOT must be set in the compose env file}/api.env"
     environment:
       # - ALLOWED_ORIGINS=["*"]  # docker-compose.yml's value, overridden
       - ALLOWED_ORIGINS=[]  # empty for the NGP deployment
@@ -80,10 +80,10 @@ services:
     # no command: the image's own is used (uvicorn without --reload, see api/Dockerfile)
     volumes:
       #- "${DATA_ROOT}/api/genome_signatures:/data/signature_db:U,z"
-      - "${DATA_ROOT}/tmp/reference_genomes:/tmp/reference_genomes:U,z"
-      - "${DATA_ROOT}/tmp/annotations:/tmp/annotations:U,z"
+      - "${DATA_ROOT:?DATA_ROOT must be set in the compose env file}/tmp/reference_genomes:/tmp/reference_genomes:U,z"
+      - "${DATA_ROOT:?DATA_ROOT must be set in the compose env file}/tmp/annotations:/tmp/annotations:U,z"
       #- /ngp_appstorage_remapped/GMC-joint:/ngp/appstorage/bonsai/GMC-joint:ro
-      - "${CRED_ROOT}/${HCI_HCP_CREDENTIALS_FILE}:/run/secret/hci_hcp_credentials.json:ro,z"
+      - "${CRED_ROOT:?CRED_ROOT must be set in the compose env file}/${HCI_HCP_CREDENTIALS_FILE:?HCI_HCP_CREDENTIALS_FILE must be set in the compose env file}:/run/secret/hci_hcp_credentials.json:ro,z"
 
   frontend:
     image: localhost/bonsai-frontend:prod
@@ -100,7 +100,7 @@ services:
     ports:
       - "8000:5000"
     env_file:
-      - "${ENV_ROOT}/frontend.env"
+      - "${ENV_ROOT:?ENV_ROOT must be set in the compose env file}/frontend.env"
     environment:
       - FLASK_APP=bonsai_app.app:create_app
       - FLASK_ENV=development
@@ -112,7 +112,7 @@ services:
     # command: "flask run --reload --debug --host 0.0.0.0"  # docker-compose.yml's command, overridden
     command: null # Overrides the command in 'docker-compose.yml' which starts a dev server.
     volumes:
-      - "${CRED_ROOT}/${HCI_HCP_CREDENTIALS_FILE}:/run/secret/hci_hcp_credentials.json:ro,z"
+      - "${CRED_ROOT:?CRED_ROOT must be set in the compose env file}/${HCI_HCP_CREDENTIALS_FILE:?HCI_HCP_CREDENTIALS_FILE must be set in the compose env file}:/run/secret/hci_hcp_credentials.json:ro,z"
 
   # todo: test ldap test
 
@@ -132,7 +132,7 @@ services:
     networks:
       - bonsai-net
     volumes:
-      - "${DATA_ROOT}/signature_db:/data/signature_db:U,z"
+      - "${DATA_ROOT:?DATA_ROOT must be set in the compose env file}/signature_db:/data/signature_db:U,z"
     #  - /data/rclone-copy-test:/data/rclone-copy-test:U,z
 
   ska_service:
@@ -152,7 +152,7 @@ services:
       - bonsai-net
     volumes:
       #- ../data/index_files:/data/index_files:U,z
-      - "${DATA_ROOT}/jasen-data/index_files:/data/index_files:U,z"
+      - "${DATA_ROOT:?DATA_ROOT must be set in the compose env file}/jasen-data/index_files:/data/index_files:U,z"
       #- /srv/bonsai/hcp-jasen-data/data/jasen_1.2.0/IONTORRENT_REALRUN/saureus/ska:/data/index_files/ska:U,z
       # rclone copy dest test
 
@@ -179,11 +179,11 @@ services:
     environment:
       - HCP_CREDS_CONTAINER=/run/secret/hci_hcp_credentials.json
     env_file:
-      - "${ENV_ROOT}/hci_hcp.env"
+      - "${ENV_ROOT:?ENV_ROOT must be set in the compose env file}/hci_hcp.env"
     restart: on-failure
     volumes:
       #- "${CRED_ROOT}/hci_hcp_credentials.json:/run/secret/hci_hcp_credentials.json:U,Z,ro"
-      - "${CRED_ROOT}/${HCI_HCP_CREDENTIALS_FILE}:/run/secret/hci_hcp_credentials.json:ro,z"
+      - "${CRED_ROOT:?CRED_ROOT must be set in the compose env file}/${HCI_HCP_CREDENTIALS_FILE:?HCI_HCP_CREDENTIALS_FILE must be set in the compose env file}:/run/secret/hci_hcp_credentials.json:ro,z"
     depends_on:
       - redis
     networks:
@@ -209,7 +209,7 @@ services:
     # ports:
     #   - "8002:8000"
     env_file:
-      - "${ENV_ROOT}/api.env"
+      - "${ENV_ROOT:?ENV_ROOT must be set in the compose env file}/api.env"
     environment:
       - PYTHONUNBUFFERED=
       - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json  # required by the API's settings; not mounted, never read here
