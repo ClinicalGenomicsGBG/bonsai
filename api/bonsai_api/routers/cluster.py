@@ -99,8 +99,8 @@ async def cluster_samples(
 
     try:
         username = current_user.username if current_user else None
-        for sample_id in cluster_input.sample_ids:
-            await samples.get(sample_id, username)
+        # One HCI search for all uncached samples, then each is fetched under its own lock
+        await samples.get_many(cluster_input.sample_ids, username)
     except EntryNotFound as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -125,7 +125,10 @@ async def cluster_samples(
             code = status.HTTP_502_BAD_GATEWAY
         raise HTTPException(
             status_code=code,
-            detail=f"Sample '{sample_id}' not cached, HCP download failed: {hcp_download_error}",
+            detail=(
+                f"Sample '{getattr(hcp_download_error, 'sample_id', '?')}' not cached, "
+                f"HCP download failed: {hcp_download_error}"
+            ),
         ) from hcp_download_error
 
     if typing_method == TypingMethod.MINHASH:

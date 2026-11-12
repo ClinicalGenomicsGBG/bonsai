@@ -1,5 +1,6 @@
 """Sample documents: cached in MongoDB, with the permanent copy in HCP."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -15,7 +16,12 @@ from ..crud.sample import get_sample, get_samples_summary
 from ..db import Database
 from ..hci_handler import BonsaiHCIHandler
 from ..models.sample import SampleInDatabase
-from ..redis.hcp import HcpUploadError, download_sample_document, upload_sample_document
+from ..redis.hcp import (
+    HcpDownloadError,
+    HcpUploadError,
+    download_sample_document,
+    upload_sample_document,
+)
 from ..redis.minhash import (
     schedule_remove_genome_signature,
     schedule_remove_genome_signature_from_index,
@@ -29,6 +35,8 @@ LOG = logging.getLogger(__name__)
 
 # Extra seconds a sample's lock lives beyond the HCP timeout, for the MongoDB work around it
 LOCK_MARGIN_SECONDS = 30
+# Most sample IDs per HCI search; larger lookups are split into several searches
+HCI_SEARCH_CHUNK_SIZE = 50
 
 
 class SampleAlreadyExistsError(Exception):
@@ -129,7 +137,9 @@ class SampleService:
             return None
 
 
-    async def get(self, sample_id: str, username: str | None) -> SampleInDatabase:
+    async def get(
+        self, sample_id: str, username: str | None, hcp_key: str | None = None
+    ) -> SampleInDatabase:
         """Get a sample, fetching it from the HCP if it isn't already cached in 'cached_sample'
 
         cached_sample decides whether the sample should be in MongoDB. Without
@@ -138,6 +148,8 @@ class SampleService:
         the same sample_id, and the entry is updated.
 
         :param username: Who requested the sample; None without login.
+        :param hcp_key: The sample's key in HCP, if already looked up in HCI
+            (see get_many); otherwise it is looked up when needed.
         :raises SampleNotFoundError: The sample is neither cached nor in the HCI mock.
         :raises HcpDownloadError: The download failed (subclasses tell why).
         :raises SampleRestoreError: The HCP copy can't be written to MongoDB.
@@ -159,13 +171,52 @@ class SampleService:
             sample = await self._read_if_cached(sample_id)
 
             if sample is None:
-                sample = await self._fetch_sample_from_hcp(sample_id)
+                sample = await self._fetch_sample_from_hcp(sample_id, hcp_key)
                 # Write the sample to the cached_samples tracker
 
             await self._touch(sample_id, username)
 
         LOG.debug("Returning sample with id '%s'", sample_id)
         return sample
+
+
+    async def get_many(self, sample_ids: list[str], username: str | None) -> list[SampleInDatabase]:
+        """Get several samples, like get(), with one HCI search for all uncached ones.
+
+        Finds which samples aren't cached, looks all of them up in HCI at once
+        (one login, one search per HCI_SEARCH_CHUNK_SIZE samples), and then gets
+        each sample in turn with get(), under its own lock. If a sample is
+        removed from the cache in between, get() looks it up on its own.
+
+        :return: The samples, in the order of sample_ids, without duplicates.
+        :raises SampleNotFoundError: Some samples are neither cached nor in HCI;
+            raised before anything is downloaded, naming all of them.
+        :raises HcpDownloadError: A download failed; the error's sample_id
+            attribute names the sample.
+        Other errors as for get().
+        """
+        unique_ids = list(dict.fromkeys(sample_ids))
+        # Cached: has a cache entry, and its document exists (as in _read_if_cached)
+        with_entry = await self._cached_samples.cached_ids(unique_ids)
+        with_document = set(
+            await self._db.sample_collection.distinct("sample_id", {"sample_id": {"$in": list(with_entry)}})
+        )
+        uncached = [sample_id for sample_id in unique_ids if sample_id not in with_entry & with_document]
+
+        hcp_keys = await self._find_hcp_keys(uncached) if uncached else {}
+        missing = [sample_id for sample_id in uncached if sample_id not in hcp_keys]
+        if missing:
+            LOG.warning("Samples not found in HCI index '%s': %s", settings.hci_index_name, ", ".join(missing))
+            raise SampleNotFoundError(f"Not found in HCI: {', '.join(missing)}")
+
+        samples = []
+        for sample_id in unique_ids:
+            try:
+                samples.append(await self.get(sample_id, username, hcp_keys.get(sample_id)))
+            except HcpDownloadError as error:
+                error.sample_id = sample_id  # for the caller's error message
+                raise
+        return samples
 
 
     async def _touch(self, sample_id: str, username: str | None) -> None:
@@ -177,7 +228,7 @@ class SampleService:
 
 
 
-    async def _fetch_sample_from_hcp(self, sample_id: str) -> SampleInDatabase:
+    async def _fetch_sample_from_hcp(self, sample_id: str, hcp_key: str | None = None) -> SampleInDatabase:
         # """Fetch sample from the HCP and insert into the MongoDB,
         # the caller holds the Redis lock"""
         # hci_entry = await self._hci_mock.get(sample_id)
@@ -195,44 +246,19 @@ class SampleService:
 
         The caller holds the Redis lock.
 
+        :param hcp_key: The sample's key in HCP, if already looked up in HCI;
+            otherwise it is looked up here.
         :raises SampleNotFoundError: HCI has no result for the sample.
         """
         # Option A, for test data whose files follow a naming pattern:
         # hcp_key = settings.hcp_jasen_result_key_template.format(sample_id=sample_id)
 
-        # Find the sample in HCI
-        hci = BonsaiHCIHandler(settings.hci_credentials_path)
-        hci.request_token()
-        query = {
-            "indexName": settings.hci_index_name,
-            "queryString": f'rootSample_name:"{sample_id}"',
-            "itemsToReturn": 10,
-        }
-        # NOTE: blocks the API while HCI answers; to let other requests run meanwhile,
-        # use the next line instead (needs "import asyncio").
-        response = hci.raw_query(query)
-        # response = await asyncio.to_thread(hci.raw_query, query)
-        LOG.info(
-            "For sample_id: '%s', HCI response hitCount: '%d'",
-            sample_id,
-            response.get("hitCount", 0),
-        )
-        if response.get("hitCount", 0) > len(response.get("results", [])):
-            # more matches than returned: fetch them all
-            response = hci.raw_query(query | {"itemsToReturn": response["hitCount"]})
-
-        # Only exact matches, so that e.g. "S1" doesn't pick up "S10"
-        results = [
-            result for result in response.get("results", [])
-            if sample_id in result["metadata"].get("rootSample_name", [])
-        ]
-        if not results:
+        if hcp_key is None:
+            hcp_key = (await self._find_hcp_keys([sample_id])).get(sample_id)
+        if hcp_key is None:
             LOG.warning("Sample '%s' not found in HCI index '%s'", sample_id, settings.hci_index_name)
             raise SampleNotFoundError(f"Sample '{sample_id}' not found in HCI")
-        if len(results) > 1:
-            LOG.warning("HCI has %d results for sample '%s'; using the first", len(results), sample_id)
 
-        hcp_key = hcp_location(results[0]["metadata"]["HCI_URI"][0])["file_path"]
         LOG.info("Fetching '%s' from HCP (key: '%s')", sample_id, hcp_key)
         document = await download_sample_document(hcp_key)
         # Insert the downloaded sample into the local DB
@@ -240,6 +266,49 @@ class SampleService:
         # Get the document from the local DB
         sample = await get_sample(self._db, sample_id)
         return sample
+
+
+    async def _find_hcp_keys(self, sample_ids: list[str]) -> dict[str, str]:
+        """Look up the HCP keys of the samples' JASEN results in HCI.
+
+        Runs in a thread, so the API keeps serving other requests meanwhile.
+
+        :return: {sample_id: HCP key} for the samples HCI knows.
+        """
+        return await asyncio.to_thread(self._search_hci, sample_ids)
+
+
+    def _search_hci(self, sample_ids: list[str]) -> dict[str, str]:
+        """Search HCI for the samples (see _find_hcp_keys): one login, one search per chunk."""
+        hci = BonsaiHCIHandler(settings.hci_credentials_path)
+        hci.request_token()
+        hcp_keys: dict[str, str] = {}
+        for start in range(0, len(sample_ids), HCI_SEARCH_CHUNK_SIZE):
+            chunk = sample_ids[start:start + HCI_SEARCH_CHUNK_SIZE]
+            wanted = set(chunk)
+            query = {
+                "indexName": settings.hci_index_name,
+                "queryString": " OR ".join(f'rootSample_name:"{sample_id}"' for sample_id in chunk),
+                "itemsToReturn": max(10, 2 * len(chunk)),
+            }
+            response = hci.raw_query(query)
+            LOG.info(
+                "HCI search for %d samples: hitCount %d",
+                len(chunk),
+                response.get("hitCount", 0),
+            )
+            if response.get("hitCount", 0) > len(response.get("results", [])):
+                # more matches than returned: fetch them all
+                response = hci.raw_query(query | {"itemsToReturn": response["hitCount"]})
+
+            for result in response.get("results", []):
+                # Only exact matches, so that e.g. "S1" doesn't pick up "S10"
+                for sample_id in wanted.intersection(result["metadata"].get("rootSample_name", [])):
+                    if sample_id in hcp_keys:
+                        LOG.warning("HCI has several results for sample '%s'; using the first", sample_id)
+                        continue
+                    hcp_keys[sample_id] = hcp_location(result["metadata"]["HCI_URI"][0])["file_path"]
+        return hcp_keys
 
 
     async def _import_jasen_result(self, sample_id: str, document: dict) -> None:
