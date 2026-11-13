@@ -79,6 +79,7 @@ from bonsai_api.redis.minhash import (
 )
 from bonsai_api.utils import format_error_message
 from .shared import SAMPLE_ID_PATH, RouterTags
+from ..log_privacy import private
 
 CommentsObj = list[CommentInDatabase]
 LOG = logging.getLogger(__name__)
@@ -468,14 +469,14 @@ async def get_vcf_files_for_sample(
             break
 
     if file_path is None:
-        LOG.error("HTTP 404: %s - %s", sample_id, variant_type)
+        LOG.error("HTTP 404: %s - %s", private(sample_id), variant_type)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No read mapping results associated with sample",
         )
     # test if file is readable
     if not is_file_readable(str(file_path)):
-        LOG.error("HTTP 500: %s - %s", sample_id, variant_type)
+        LOG.error("HTTP 500: %s - %s", private(sample_id), variant_type)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Alignment file could not be processed",
@@ -682,7 +683,7 @@ async def find_similar_samples(
     The entrypoint adds a similarity search job to the redis
     queue.
     """
-    LOG.info("ref: %s, body: %s, cluster: %s", sample_id, body, body.cluster)
+    LOG.info("ref: %s, body: %s, cluster: %s", private(sample_id), body, body.cluster)
     try:
         if body.cluster:
             submission_info: SubmittedJob = schedule_find_similar_and_cluster(

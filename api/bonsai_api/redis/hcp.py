@@ -8,6 +8,7 @@ from redis.exceptions import RedisError
 
 from ..config import settings
 from .queue import redis
+from ..log_privacy import job_description
 
 LOG = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ async def upload_sample_document(document: dict[str, Any], overwrite: bool = Fal
     try:
         job = redis.hcp.enqueue(
             UPLOAD_TASK,
+            description=job_description(UPLOAD_TASK),
             document=json.dumps(document),
             deadline=timeout_deadline,
             overwrite=overwrite,
@@ -128,6 +130,7 @@ async def download_sample_document(hcp_key: str) -> dict[str, Any]:
     try:
         job = redis.hcp.enqueue(
             DOWNLOAD_TASK,
+            description=job_description(DOWNLOAD_TASK),
             hcp_key=hcp_key,
             deadline=timeout_deadline,
             job_timeout=settings.hcp_download_timeout,

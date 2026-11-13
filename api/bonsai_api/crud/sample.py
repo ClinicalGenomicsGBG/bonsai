@@ -351,7 +351,7 @@ async def get_samples(
                     "This can be caused if the data format has been updated. "
                     "If that is the case the database needs to be migrated. "
                     "See the documentation for more information."
-                ), samp.get("sample_id", "unknown id"))
+                ), private(samp.get("sample_id", "unknown id")))
             raise err
         # Compute tags
         tags = compute_phenotype_tags(sample)
@@ -392,7 +392,7 @@ async def create_sample(db: Database, sample: PipelineResult) -> SampleInDatabas
 async def update_sample(db: Database, updated_data: SampleInCreate) -> bool:
     """Replace an existing sample in the database with an updated version."""
     sample_id = updated_data.sample_id
-    LOG.debug("Updating sample: %s in database", sample_id)
+    LOG.debug("Updating sample: %s in database", private(sample_id))
 
     # store data in database
     try:
@@ -402,7 +402,7 @@ async def update_sample(db: Database, updated_data: SampleInCreate) -> bool:
     except Exception as err:
         LOG.error(
             "Error when updating sample: %s{sample_id} - %s",
-            sample_id,
+            private(sample_id),
             format_error_message(err),
         )
         raise err
@@ -427,7 +427,7 @@ async def delete_samples(db: Database, sample_ids: List[str]) -> bool:
     # verify that only one sample found and one document was modified
     result["n_deleted"] = resp.deleted_count
     all_deleted = resp.deleted_count == len(sample_ids)
-    LOG.info("Removing samples: %s; status: %s", ", ".join(sample_ids), all_deleted)
+    LOG.info("Removing samples: %s; status: %s", private(", ".join(sample_ids)), all_deleted)
 
     # remove sample from group if sample was deleted
     resp = await db.sample_group_collection.update_many(
@@ -443,7 +443,7 @@ async def delete_samples(db: Database, sample_ids: List[str]) -> bool:
     result["removed_from_n_groups"] = resp.modified_count
     LOG.info(
         "Removing sample %s from groups; in n groups: %d; n modified documents: %d",
-        ", ".join(sample_ids),
+        private(", ".join(sample_ids)),
         resp.matched_count,
         resp.modified_count,
     )
@@ -484,6 +484,7 @@ async def get_sample(db: Database, sample_id: str) -> SampleInDatabase:
 from NGPIris import HCPHandler
 import json
 import os
+from ..log_privacy import private
 
 
 async def download_sample_result(sample_id: str) -> PipelineResult:
@@ -549,7 +550,7 @@ async def add_comment(
         raise EntryNotFound(sample_id)
     if not update_obj.modified_count == 1:
         raise UpdateDocumentError(sample_id)
-    LOG.info("Added comment to %s", sample_id)
+    LOG.info("Added comment to %s", private(sample_id))
     return [comment_obj.model_dump()] + sample.comments
 
 
@@ -569,7 +570,7 @@ async def hide_comment(db: Database, sample_id: str, comment_id: int) -> bool:
         raise EntryNotFound(sample_id)
     if not update_obj.modified_count == 1:
         raise UpdateDocumentError(sample_id)
-    LOG.info("Hide comment %s for %s", comment_id, sample_id)
+    LOG.info("Hide comment %s for %s", comment_id, private(sample_id))
     # update comments in return object
     return True
 
@@ -750,7 +751,7 @@ async def add_location(
         LOG.warning(
             "Tried to add location: %s to sample %s, location not found",
             location_id,
-            sample_id,
+            private(sample_id),
         )
         raise err
 
@@ -768,7 +769,7 @@ async def add_location(
         raise EntryNotFound(sample_id)
     if not update_obj.modified_count == 1:
         raise UpdateDocumentError(sample_id)
-    LOG.info("Added location %s to %s", location_obj.display_name, sample_id)
+    LOG.info("Added location %s to %s", location_obj.display_name, private(sample_id))
     return location_obj
 
 

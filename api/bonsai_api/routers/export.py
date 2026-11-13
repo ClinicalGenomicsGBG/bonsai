@@ -14,6 +14,7 @@ from ..crud.user import get_current_active_user
 from ..db import Database, get_db
 from ..models.user import UserOutputDatabase
 from .shared import SAMPLE_ID_PATH
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 router = APIRouter()
@@ -91,7 +92,7 @@ async def export_to_lims(
         config_map = _load_lims_config_map()
         conf = config_map.get(assay)
         if conf is None:
-            LOG.info("No LIMS config for assay '%s'", assay, extra={"sample_id": sample_id})
+            LOG.info("No LIMS config for assay '%s'", assay, extra={"sample_id": private(sample_id)})
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Export not supported for assay '{assay}'"
@@ -101,7 +102,7 @@ async def export_to_lims(
     except NotImplementedError as exc:
         LOG.exception(
             "LIMS formatter not implemented for this assay",
-            extra={"sample_id": sample_id, "assay": assay}
+            extra={"sample_id": private(sample_id), "assay": assay}
         )
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -119,7 +120,7 @@ async def export_to_lims(
     except (InvalidFormatError, ValueError) as exc:
         LOG.exception(
             "Failed to format LIMS export",
-            extra={"sample_id": sample_id, "assay": assay}
+            extra={"sample_id": private(sample_id), "assay": assay}
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -24,6 +24,7 @@ from ldap3.core.exceptions import (
 from ldap3.utils.dn import parse_dn
 
 from ..config import settings
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ class LDAPConnection:
         if not is_valid_dn(username):
             # try to lookup user DN
             user_filter = f"({attribute}={username})"
-            LOG.info("Invalid DN provided, %s, try lookup DN", username)
+            LOG.info("Invalid DN provided, %s, try lookup DN", private(username))
             if search_filter is not None:
                 user_filter = f"(&{user_filter}{search_filter})"
 
@@ -143,7 +144,7 @@ class LDAPConnection:
                 username = response[0]["dn"]  # update DN
             except (LDAPInvalidDnError, LDAPInvalidFilterError, IndexError) as error:
                 LOG.warning(
-                    "Failed to lookup DN for user %s; error: %s", username, error
+                    "Failed to lookup DN for user %s; error: %s", private(username), error
                 )
                 return False
 
@@ -152,7 +153,7 @@ class LDAPConnection:
             conn_obj.unbind()
             is_authenticated = True
         except LDAPBindError as error:
-            LOG.warning("Failed to authenticate user: %s; error: %s", username, error)
+            LOG.warning("Failed to authenticate user: %s; error: %s", private(username), error)
             is_authenticated = False
         return is_authenticated
 

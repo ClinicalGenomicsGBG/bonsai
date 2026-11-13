@@ -13,6 +13,7 @@ from ..models.sample import SampleInDatabase
 from ..redis import minhash, ska
 from ..redis.queue import JobFailedError
 from ..redis.utils import SubmittedJob, wait_for_job
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -101,11 +102,11 @@ def verify_sourmash_files(
         except JobFailedError as err:
             LOG.info(
                 "Something went wrong when checking minhash sequence of %s, skipping...",
-                sample.sample_id,
+                private(sample.sample_id),
             )
             LOG.debug("Minhash error: %s", err)
         except TimeoutError as err:
-            LOG.debug("Job to verify sample '%s' timed out", sample.sample_id)
+            LOG.debug("Job to verify sample '%s' timed out", private(sample.sample_id))
         else:
             # report if file was missing
             if job_status.result is None:

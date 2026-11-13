@@ -3,6 +3,7 @@ import re
 
 from .config import settings
 from .hci_handler import BonsaiHCIHandler
+from .log_privacy import LOG_SAMPLE_IDS
 
 
 SEARCH_FIELDS = ["rootSample_name", "rootLims_id", "sequencingRun_id", "pipelineAssay"]
@@ -33,10 +34,11 @@ def contains(result: dict, term: str, fields: list[str] = SEARCH_FIELDS) -> bool
 
 def get_hci_samples(term: str, items: int = 500):
     h = BonsaiHCIHandler(settings.hci_credentials_path)
-    print(h.address)
-    print(f"{h.address=}")
-    print(f"{h.username=}")
-    print(f"{h.realm=}")
+    if LOG_SAMPLE_IDS:
+        print(h.address)
+        print(f"{h.address=}")
+        print(f"{h.username=}")
+        print(f"{h.realm=}")
     h.request_token()
     #resp = h.raw_query(
     #    {

@@ -26,6 +26,7 @@ from ...bonsai import create_user as create_new_user
 from ...bonsai import delete_user as delete_user_from_db
 from ...bonsai import get_user, get_users
 from ...bonsai import update_user as update_user_info
+from ...log_privacy import private
 
 admin_bp = Blueprint(
     "admin",
@@ -198,7 +199,7 @@ def update_user(username):
                 current_app.logger.error("Error updating user: %s", str(error))
             else:
                 flash(f"Updated user {username}", "success")
-                current_app.logger.debug("Updated user: %s", username)
+                current_app.logger.debug("Updated user: %s", private(username))
         else:
             try:
                 delete_user_from_db(token, username=username)

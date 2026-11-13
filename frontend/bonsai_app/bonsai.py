@@ -11,6 +11,7 @@ from requests.structures import CaseInsensitiveDict
 
 from .config import settings
 from .models import SampleBasketObject, SubmittedJob
+from .log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ def get_groups(headers: CaseInsensitiveDict[str]):
     """Get groups from database"""
     # conduct query
     url = f"{settings.api_internal_url}/groups/"
-    LOG.error("query api url: %s", url)
+    LOG.error("query api url: %s", private(url))
     resp = requests_get(url, headers=headers)
 
     resp.raise_for_status()
@@ -313,7 +314,7 @@ def get_sample_by_id(
     # conduct query
     url = f"{settings.api_internal_url}/samples/{sample_id}"
     resp = requests_get(url, headers=headers)
-    current_app.logger.debug("Query API for sample %s", sample_id)
+    current_app.logger.debug("Query API for sample %s", private(sample_id))
 
     resp.raise_for_status()
     return resp.json()
@@ -429,7 +430,7 @@ def find_samples_similar_to_reference(
     url = f"{settings.api_internal_url}/samples/{sample_id}/similar"
     current_app.logger.debug(
         "Query API for samples similar to %s, similarity: %s, limit: %s",
-        sample_id,
+        private(sample_id),
         similarity,
         limit,
     )
@@ -456,7 +457,7 @@ def find_and_cluster_similar_samples(
     url = f"{settings.api_internal_url}/samples/{sample_id}/similar"
     current_app.logger.debug(
         "Query API for samples similar to %s, similarity: %f, limit: %d",
-        sample_id,
+        private(sample_id),
         similarity,
         limit,
     )

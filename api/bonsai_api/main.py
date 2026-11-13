@@ -21,6 +21,7 @@ from .routers import (
     samples,
     users,
 )
+from .log_privacy import LOG_SAMPLE_IDS
 
 logging_config.dictConfig(
     {
@@ -42,6 +43,10 @@ logging_config.dictConfig(
     }
 )
 LOG = logging.getLogger(__name__)
+
+if not LOG_SAMPLE_IDS:
+    # uvicorn's access log has the path of every request, e.g. /samples/<sample_id>
+    logging.getLogger("uvicorn.access").disabled = True
 
 app = FastAPI(
     title="Bonsai",

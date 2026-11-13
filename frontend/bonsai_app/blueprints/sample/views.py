@@ -46,6 +46,7 @@ from .controllers import (
     sort_variants,
     split_metadata,
 )
+from ...log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -270,7 +271,7 @@ def download_lims(sample_id: str):
         status = error.response.status_code == 401
         if status:
             current_app.logger.warning(
-                "LIMS export error - no permissoin %s", current_user.username
+                "LIMS export error - no permissoin %s", private(current_user.username)
             )
             flash("You dont have permission to export the result to LIMS", "warning")
         elif status == 404:

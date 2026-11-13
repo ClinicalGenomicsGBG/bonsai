@@ -7,6 +7,7 @@ from typing import Sequence
 
 from ..config import Settings
 from .base import ska_base
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def resolve_index_path(
 
     # else try to find the file
     if find_missing:
-        LOG.info("Trying to find file %s by recursive search", file_name)
+        LOG.info("Trying to find file %s by recursive search", private(file_name))
         for root, _, files in Path(cnf.index_dir).walk():
             if index_path.name in files:
                 return Path(root) / index_path.name
@@ -61,7 +62,7 @@ def ska_merge(index_files: Sequence[Path], output: Path | None = None) -> Path:
     # create temporary directory if no inputfile was generated
     output = output if output is not None else Path(tempfile.mkstemp(suffix=".skf")[1])
 
-    LOG.info("Merging files %s into %s", index_files, output)
+    LOG.info("Merging files %s into %s", private(index_files), output)
     # merge index files
     ska_base("merge", arguments=index_files, options={"o": output})
     return output

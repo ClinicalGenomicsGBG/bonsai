@@ -11,6 +11,7 @@ from .config import settings
 from .custom_filters import FILTERS as JINJA_FILTERS
 from .custom_filters import TESTS as JINJA_TESTS
 from .extensions import login_manager
+from .log_privacy import LOG_SAMPLE_IDS
 
 
 
@@ -54,6 +55,8 @@ def create_app():
     # NOTE: temporary code for debugging
     @app.before_request
     def log_proxy_info():
+        if not LOG_SAMPLE_IDS:
+            return  # logs every request's URL and client addresses
         app.logger.warning(
             "============== orig=%s fwd=%s scheme=%s host=%s url=%s",
             request.environ.get("werkzeug.proxy_fix.orig"),

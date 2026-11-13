@@ -8,6 +8,7 @@ from .minhash.io import remove_signatures_from_index, write_signature
 from .minhash.similarity import get_similar_signatures
 from .minhash.models import SimilarSignatures, SignatureFile
 from .config import settings
+from .log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ def similar(
     )
     LOG.info(
         "Finding samples similar to %s with min similarity %s; limit %s",
-        sample_id,
+        private(sample_id),
         min_similarity,
         limit,
     )
@@ -168,7 +169,7 @@ def find_similar_and_cluster(
         raise ValueError(msg) from error
     LOG.info(
         "Finding samples similar to %s with min similarity %s; limit %s",
-        sample_id,
+        private(sample_id),
         min_similarity,
         limit,
     )
@@ -184,7 +185,7 @@ def find_similar_and_cluster(
     # cluster samples
     LOG.info(
         "Clustering the following samples to %s: ",
-        ", ".join(sids),
+        private(", ".join(sids)),
     )
     newick: str = cluster_signatures(sids, method, cnf=settings)
     return newick

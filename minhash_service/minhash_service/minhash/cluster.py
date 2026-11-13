@@ -8,6 +8,7 @@ from scipy.cluster import hierarchy
 
 from .io import read_signature
 from minhash_service.config import Settings
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def cluster_signatures(sample_ids: List[str], method: ClusterMethod, cnf: Settin
 
     # load sequence signatures to memory
     siglist = []
-    LOG.info("Cluster signatures with sample ids: %s", sample_ids)
+    LOG.info("Cluster signatures with sample ids: %s", private(sample_ids))
     for sample_id in sample_ids:
         signature = read_signature(sample_id, cnf=cnf)
         siglist.extend(signature)  # append to all signatures

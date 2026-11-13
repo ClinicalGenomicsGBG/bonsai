@@ -33,6 +33,7 @@ from ...bonsai import (
 from ...models import BadSampleQualityAction, PhenotypeType, QualityControlResult
 
 from ...hci import get_hci_samples
+from ...log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ def groups() -> str:
     # if not valid token
     if current_user.get_id() is None:
         LOG.info(
-            "User not logged in: %s %s", current_user.first_name, current_user.last_name
+            "User not logged in: %s %s", private(current_user.first_name), private(current_user.last_name)
         )
         return redirect(url_for("public.index"))
 
@@ -342,7 +343,7 @@ def update_qc_classification():
 
     selected_samples = request.form.getlist("qc-selected-samples")
 
-    LOG.debug("Processing request to set QC for %s", selected_samples)
+    LOG.debug("Processing request to set QC for %s", private(selected_samples))
 
     if not selected_samples:
         LOG.warning("Received request to set QC but no selected samples")
@@ -375,7 +376,7 @@ def update_qc_classification():
             )
         except Exception as error:
             LOG.exception(
-                "Encountered error when updating QC status for sample %s:", sample_id
+                "Encountered error when updating QC status for sample %s:", private(sample_id)
             )
             flash(str(error), "danger")
 

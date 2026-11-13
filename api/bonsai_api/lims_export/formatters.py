@@ -9,6 +9,7 @@ from prp.models.phenotype import PredictionSoftware
 from prp.models.typing import TypingMethod, TypingResultEmm
 
 from .models import Formatter, LimsAtomic, LimsComment, LimsValue
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ def species_prediction(
             # ensure that best hit is first
             if len(pred.result) == 0:
                 LOG.warning(
-                    "Sample %s did not have any bracken predicitons", sample.sample_name
+                    "Sample %s did not have any bracken predicitons", private(sample.sample_name)
                 )
                 raise AnalysisNoResultError()
             # filter and sort

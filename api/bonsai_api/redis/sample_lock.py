@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from redis.exceptions import LockError, RedisError
 
 from .queue import redis
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -66,6 +67,6 @@ async def sample_lock(sample_id: str, ttl: int, wait: bool = True) -> AsyncGener
         try:
             lock.release()
         except LockError as error:  # also covers a lock that expired while held
-            LOG.warning("Lock on sample '%s' was already released: %s", sample_id, error)
+            LOG.warning("Lock on sample '%s' was already released: %s", private(sample_id), error)
         except RedisError as error:
-            LOG.warning("Could not release the lock on sample '%s': %s", sample_id, error)
+            LOG.warning("Could not release the lock on sample '%s': %s", private(sample_id), error)

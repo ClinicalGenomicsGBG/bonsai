@@ -9,6 +9,7 @@ from bonsai_api.models.sample import SampleInDatabase
 
 from .formatters import AnalysisNoResultError, AnalysisNotPresentError, get_formatter
 from .models import AssayConfig, LimsRsResult, LimsValue
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def lims_rs_formatter(
       - analysis present but no result ⇒ include a row with value=None (empty after _to_str)
       - analysis not present and required ⇒ raise ValueError
     """
-    LOG.debug("Preparing to format %s using assay %s", sample.sample_name, config.assay)
+    LOG.debug("Preparing to format %s using assay %s", private(sample.sample_name), config.assay)
     result: list[LimsRsResult] = []
     for field in config.fields:
         formatter = get_formatter(field.data_type)
@@ -50,7 +51,7 @@ def lims_rs_formatter(
         except Exception as err:
             LOG.error(
                 "Unexpected error formatting sample=%s field=%s (%s): %s",
-                sample.sample_name,
+                private(sample.sample_name),
                 field.parameter_name,
                 field.data_type,
                 err,

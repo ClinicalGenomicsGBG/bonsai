@@ -7,6 +7,7 @@ import pandas as pd
 
 from . import ClusterMethod, SubmittedJob
 from .queue import redis
+from ..log_privacy import job_description
 
 LOG = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def schedule_cluster_samples(
         .to_csv(sep="\t")  # convert to tsv string
     )
     job = redis.allele.enqueue(
-        task, profile=profile_tsv, method=cluster_method.value, job_timeout="30m"
+        task, description=job_description(task), profile=profile_tsv, method=cluster_method.value, job_timeout="30m"
     )
     LOG.debug("Submitting job, %s to %s", task, job.worker_name)
     return SubmittedJob(id=job.id, task=task)

@@ -24,6 +24,11 @@
 #   env_file: compose.ngp.prod.env
 # #  - docker-compose.yml
 
+# Whether logs may contain sample IDs, LIMS IDs, sample names, HCP keys, usernames
+# and request URLs (LOG_SAMPLE_IDS=true or false). Defined once here, and passed
+# to every Bonsai service below with "- *log-sample-ids".
+x-log-sample-ids: &log-sample-ids "LOG_SAMPLE_IDS=false"
+
 services:
   mongodb:
     image: mongo:4.4.22
@@ -74,6 +79,7 @@ services:
       - DB_HOST=mongodb
       - HCP_UPLOAD_ENABLED=true
       - HCP_UPLOAD_TIMEOUT=60
+      - *log-sample-ids
       - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json
     networks:
       - bonsai-net
@@ -105,6 +111,7 @@ services:
       - FLASK_APP=bonsai_app.app:create_app
       - FLASK_ENV=development
       - TZ=Europe/Stockholm
+      - *log-sample-ids
       - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json
       - TESTING=True
     networks:
@@ -124,6 +131,8 @@ services:
       network: host
     #environment:
     #  GENOME_SIGNATURE_DIR: "${DATA_ROOT}/signature_db"
+    environment:
+      - *log-sample-ids
     userns_mode: keep-id
     user: "1001:1001"
     restart: on-failure
@@ -146,6 +155,7 @@ services:
     restart: on-failure
     environment:
       - log_level=debug
+      - *log-sample-ids
     depends_on:
       - redis
     networks:
@@ -178,6 +188,7 @@ services:
       network: host
     environment:
       - HCP_CREDS_CONTAINER=/run/secret/hci_hcp_credentials.json
+      - *log-sample-ids
     env_file:
       - "${ENV_ROOT:?ENV_ROOT must be set in the compose env file}/hci_hcp.env"
     restart: on-failure
@@ -212,6 +223,7 @@ services:
       - "${ENV_ROOT:?ENV_ROOT must be set in the compose env file}/api.env"
     environment:
       - PYTHONUNBUFFERED=
+      - *log-sample-ids
       - HCI_CREDENTIALS_PATH=/run/secret/hci_hcp_credentials.json  # required by the API's settings; not mounted, never read here
       - DB_HOST=mongodb
       - CACHE_CLEANUP_LOG_LEVEL=INFO  # DEBUG for more detail

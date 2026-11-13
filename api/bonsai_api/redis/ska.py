@@ -8,6 +8,7 @@ from rq.job import Dependency
 
 from .models import ClusterMethod, SubmittedJob
 from .queue import redis
+from ..log_privacy import job_description
 
 LOG = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ def schedule_cluster_samples(
     LOG.debug("Schedule SKA clustering of %s with %s", index_files, cluster_method)
     job = redis.ska.enqueue(
         task,
+        description=job_description(task),
         indexes=index_files,
         cluster_method=cluster_method.value,
         job_timeout="30m",
@@ -34,6 +36,7 @@ def schedule_check_index(index_file: str) -> SubmittedJob:
     LOG.debug("Schedule SKA to check whether '%s' exists.", index_file)
     job = redis.ska.enqueue(
         task,
+        description=job_description(task),
         file_name=index_file,
         job_timeout="30m",
     )

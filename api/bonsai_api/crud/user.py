@@ -20,6 +20,7 @@ from ..models.user import (
     UserOutputDatabase,
 )
 from .errors import EntryNotFound, UpdateDocumentError
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", scopes={})
@@ -48,7 +49,7 @@ async def update_user(db_obj: Database, username: str, user: UserInputCreate):
     new_user_info = user.model_dump()
     if len(user.password) > 0:
         # create hash for new password
-        LOG.info("Changed password for %s", username)
+        LOG.info("Changed password for %s", private(username))
         new_user_info["hashed_password"] = get_password_hash(user.password)
 
     user_in_db = await get_user(db_obj, username=username)
@@ -235,8 +236,8 @@ async def remove_samples_from_user_basket(
         )
         LOG.error(
             "try removing samples %s from basket. Content: %s",
-            sample_ids,
-            sample_ids_in_basket,
+            private(sample_ids),
+            private(sample_ids_in_basket),
         )
         raise UpdateDocumentError(
             f"Error when updating the basket of {current_user.username}"

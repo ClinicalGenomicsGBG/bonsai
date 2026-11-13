@@ -10,6 +10,7 @@ from Bio import AlignIO
 from . import ska
 from .config import settings
 from .ska.cluster import ClusterMethod, calc_snv_distance
+from .log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -57,10 +58,10 @@ def check_index(file_name: str) -> str | None:
 
     returns true if the index file exists and are accessable, else false
     """
-    LOG.info("Check if index file %s is accessable.", file_name)
+    LOG.info("Check if index file %s is accessable.", private(file_name))
     try:
         path: Path = ska.resolve_index_path(file_name, settings, find_missing=True)
         return str(path)
     except FileNotFoundError:
-        LOG.error("The index file %s could not be found.", file_name)
+        LOG.error("The index file %s could not be found.", private(file_name))
     return None

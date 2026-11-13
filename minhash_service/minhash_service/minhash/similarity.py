@@ -10,6 +10,7 @@ from minhash_service.config import Settings
 from minhash_service.minhash.models import SimilarSignatures, SimilarSignature
 
 from .io import get_sbt_index, read_signature
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -23,13 +24,13 @@ def get_similar_signatures(
     """
     LOG.info(
         "Finding similar: %s; similarity: %f, limit: %d",
-        sample_id,
+        private(sample_id),
         min_similarity,
         limit,
     )
 
     # load sourmash index
-    LOG.debug("Getting samples similar to: %s", sample_id)
+    LOG.debug("Getting samples similar to: %s", private(sample_id))
     index_path = get_sbt_index(cnf)
     LOG.debug("Load index file to memory")
     db: SBT = sourmash.load_file_as_index(str(index_path))
@@ -48,11 +49,11 @@ def get_similar_signatures(
         # extract sample id from sample name
         sid = sig.filename.split("_")[0] if sig.name == "" else sig.name
         signature_path = index_path.joinpath(sig.filename)
-        LOG.info("no %d - path: %s -> %s", itr_no, signature_path, sid)
+        LOG.info("no %d - path: %s -> %s", itr_no, private(signature_path), private(sid))
         samples.append(SimilarSignature(sample_id=sid, similarity=similarity))
 
         # break iteration if limit is reached
         if isinstance(limit, int) and limit == itr_no:
             break
-    LOG.info("Found %d samples similar to %s", len(samples), sample_id)
+    LOG.info("Found %d samples similar to %s", len(samples), private(sample_id))
     return samples

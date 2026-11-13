@@ -12,6 +12,7 @@ from sourmash.signature import FrozenSourmashSignature, SourmashSignature
 from minhash_service.config import Settings
 
 from .models import SignatureFile, SignatureName
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 Signatures = list[SourmashSignature | FrozenSourmashSignature]
@@ -75,7 +76,7 @@ def write_signature(
     Create new index if none exist.
     """
     # get signature directory
-    LOG.info("Adding signature file for %s", sample_id)
+    LOG.info("Adding signature file for %s", private(sample_id))
     signature_db = pathlib.Path(cnf.signature_dir)
     # make db if signature db is not present
     if not signature_db.exists():
@@ -110,9 +111,9 @@ def write_signature(
     try:
         with open(signature_file, "w", encoding="utf-8") as out:
             sourmash.signature.save_signatures_to_json(upd_signatures, out)
-        LOG.info("Wrote genome signatures to file to %s", signature_file)
+        LOG.info("Wrote genome signatures to file to %s", private(signature_file))
     except PermissionError as error:
-        msg = f"Dont have permission to write file to disk, {signature_file}"
+        msg = f"Dont have permission to write file to disk, {private(signature_file)}"
         LOG.error(msg)
         raise PermissionError(msg) from error
 
@@ -130,13 +131,13 @@ def remove_signature(sample_id: str, cnf: Settings) -> bool:
 
     # remove file
     pathlib.Path(signature_file).unlink()
-    LOG.info("Signature file: %s was removed", signature_file)
+    LOG.info("Signature file: %s was removed", private(signature_file))
     return False
 
 
 def check_signature(sample_id: str, cnf: Settings) -> bool:
     """Check if signature exist and has been added to the index."""
-    LOG.info("Checking signature file: %s", signature_file)
+    LOG.info("Checking signature file: %s", private(signature_file))
     try:
         signature_file = get_signature_path(
             sample_id, signature_dir=cnf.signature_dir, check=True
@@ -178,7 +179,7 @@ def add_signatures_to_index(sample_ids: list[str], cnf: Settings) -> tuple[bool,
 
     # add signature to existing index
     # acquire lock to append signatures to database
-    LOG.debug("Attempt to acquire lock to append %s to index...", signatures)
+    LOG.debug("Attempt to acquire lock to append %s to index...", private(signatures))
     with lock:
         # check if index already exist
         try:
@@ -228,7 +229,7 @@ def remove_signatures_from_index(sample_ids: list[str], cnf: Settings) -> bool:
 
     # remove signature from existing index
     # acquire lock to remove signatures from database
-    LOG.debug("Attempt to acquire lock to append %s to index...", sample_ids)
+    LOG.debug("Attempt to acquire lock to append %s to index...", private(sample_ids))
     with lock:
         # check if index already exist
         index_path = get_sbt_index(cnf)

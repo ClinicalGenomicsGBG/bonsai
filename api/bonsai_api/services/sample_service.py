@@ -30,6 +30,7 @@ from ..redis.sample_lock import SampleLockError, sample_lock
 from ..utils import get_timestamp, hcp_location
 from .cached_sample_service import CachedSampleService
 from .hci_mock_service import HciMockService
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -108,18 +109,18 @@ class SampleService:
                     {"sample_id": db_obj.sample_id, "_id": {"$ne": ObjectId(db_obj.id)}}
                 )
             except Exception as error:  # pylint: disable=broad-except
-                LOG.error("Could not remove replaced documents of %s: %s", db_obj.sample_id, error)
+                LOG.error("Could not remove replaced documents of %s: %s", private(db_obj.sample_id), error)
         try:
             await self._cached_samples.touch(db_obj.sample_id, username)
         except Exception as error:
-            LOG.error("Could not record '%s' as cached: %s", db_obj.sample_id, error)
+            LOG.error("Could not record '%s' as cached: %s", private(db_obj.sample_id), error)
         if hcp_result is not None:
             try:
                 await self._register_in_hci_mock(db_obj, hcp_result)
             except Exception as error:  #pylint: disable=broad-except
                 LOG.error(
                     "Could not register %s in the HCI mock: %s",
-                    db_obj.sample_id,
+                    private(db_obj.sample_id),
                     error,
                 )
         return db_obj
@@ -133,7 +134,7 @@ class SampleService:
         try:
             return await get_sample(self._db, sample_id)
         except EntryNotFound:
-            LOG.info("Cache entry for '%s' is stale; no document in MongoDB", sample_id)
+            LOG.info("Cache entry for '%s' is stale; no document in MongoDB", private(sample_id))
             return None
 
 
@@ -155,11 +156,11 @@ class SampleService:
         :raises SampleRestoreError: The HCP copy can't be written to MongoDB.
         :raises SampleLockError: The sample's lock couldn't be taken.
         """
-        LOG.debug("Sample with id '%s' was requested by '%s'", sample_id, username)
+        LOG.debug("Sample with id '%s' was requested by '%s'", private(sample_id), private(username))
         sample = await self._read_if_cached(sample_id)
 
         if sample is not None:
-            LOG.debug("Sample with '%s' found in cache", sample_id)
+            LOG.debug("Sample with '%s' found in cache", private(sample_id))
             await self._touch(sample_id, username)
             # LOG.debug("===== Sample START =====================================")
             # print(sample)
@@ -176,7 +177,7 @@ class SampleService:
 
             await self._touch(sample_id, username)
 
-        LOG.debug("Returning sample with id '%s'", sample_id)
+        LOG.debug("Returning sample with id '%s'", private(sample_id))
         return sample
 
 
@@ -206,7 +207,7 @@ class SampleService:
         hcp_keys = await self._find_hcp_keys(uncached) if uncached else {}
         missing = [sample_id for sample_id in uncached if sample_id not in hcp_keys]
         if missing:
-            LOG.warning("Samples not found in HCI index '%s': %s", settings.hci_index_name, ", ".join(missing))
+            LOG.warning("Samples not found in HCI index '%s': %s", settings.hci_index_name, private(", ".join(missing)))
             raise SampleNotFoundError(f"Not found in HCI: {', '.join(missing)}")
 
         samples = []
@@ -224,7 +225,7 @@ class SampleService:
         try:
             await self._cached_samples.touch(sample_id, username)
         except Exception as error:  # pylint: disable=broad-except
-            LOG.error("Could not record '%s' as cached: %s", sample_id, error)
+            LOG.error("Could not record '%s' as cached: %s", private(sample_id), error)
 
 
 
@@ -256,10 +257,10 @@ class SampleService:
         if hcp_key is None:
             hcp_key = (await self._find_hcp_keys([sample_id])).get(sample_id)
         if hcp_key is None:
-            LOG.warning("Sample '%s' not found in HCI index '%s'", sample_id, settings.hci_index_name)
+            LOG.warning("Sample '%s' not found in HCI index '%s'", private(sample_id), settings.hci_index_name)
             raise SampleNotFoundError(f"Sample '{sample_id}' not found in HCI")
 
-        LOG.info("Fetching '%s' from HCP (key: '%s')", sample_id, hcp_key)
+        LOG.info("Fetching '%s' from HCP (key: '%s')", private(sample_id), private(hcp_key))
         document = await download_sample_document(hcp_key)
         # Insert the downloaded sample into the local DB
         await self._import_jasen_result(sample_id, document)
@@ -305,7 +306,7 @@ class SampleService:
                 # Only exact matches, so that e.g. "S1" doesn't pick up "S10"
                 for sample_id in wanted.intersection(result["metadata"].get("rootSample_name", [])):
                     if sample_id in hcp_keys:
-                        LOG.warning("HCI has several results for sample '%s'; using the first", sample_id)
+                        LOG.warning("HCI has several results for sample '%s'; using the first", private(sample_id))
                         continue
                     hcp_keys[sample_id] = hcp_location(result["metadata"]["HCI_URI"][0])["file_path"]
         return hcp_keys
@@ -419,7 +420,7 @@ class SampleService:
         except (HcpUploadError, SampleAlreadyExistsError) as hcp_upload_error:
             LOG.error(
                 "HCP upload failed for %s: %s",
-                sample_doc['sample_id'],
+                private(sample_doc['sample_id']),
                 hcp_upload_error
             )
             try:
@@ -436,7 +437,7 @@ class SampleService:
                 ) from hcp_upload_error
             raise
 
-        LOG.info("Sample %s was uploaded to NGPr, result: %s", sample_doc["sample_id"], result)
+        LOG.info("Sample %s was uploaded to NGPr, result: %s", private(sample_doc["sample_id"]), private(result))
         return result
 
 
@@ -467,7 +468,7 @@ class SampleService:
         # verify that only one sample found and one document was modified
         result["n_deleted"] = resp.deleted_count
         all_deleted = resp.deleted_count == len(sample_ids)
-        LOG.info("Removing samples: %s; status: %s", ", ".join(sample_ids), all_deleted)
+        LOG.info("Removing samples: %s; status: %s", private(", ".join(sample_ids)), all_deleted)
 
         # remove sample from group if sample was deleted
         resp = await self._db.sample_group_collection.update_many(
@@ -483,7 +484,7 @@ class SampleService:
         result["removed_from_n_groups"] = resp.modified_count
         LOG.info(
             "Removing sample %s from groups; in n groups: %d; n modified documents: %d",
-            ", ".join(sample_ids),
+            private(", ".join(sample_ids)),
             resp.matched_count,
             resp.modified_count,
         )

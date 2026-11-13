@@ -14,6 +14,7 @@ from ..models.tags import (
     TagType,
     VirulenceTag,
 )
+from ..log_privacy import private
 
 LOG = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ def compute_phenotype_tags(sample: SampleInDatabase) -> TagList:
             )
         except StopIteration as error:
             raise ValueError(
-                f"No Bracken spp result for sample {sample.sample_id}"
+                f"No Bracken spp result for sample {private(sample.sample_id)}"
             ) from error
         major_spp = spp_res.result[0].scientific_name
         LOG.debug("Major spp %s in %s", major_spp, str(tag_func["species"]))

@@ -14,6 +14,16 @@ from NGPIris import HCPHandler
 from NGPIris.hcp.exceptions import ObjectAlreadyExistError
 
 LOG = logging.getLogger(__name__)
+
+# Whether logs may contain HCP keys (which contain sample IDs). LOG_SAMPLE_IDS=false
+# replaces them by "<hidden>"; all other logging is unaffected.
+LOG_SAMPLE_IDS = os.environ.get("LOG_SAMPLE_IDS", "true").strip().lower() not in ("0", "false", "no", "off")
+
+
+def private(value):
+    """The value, or "<hidden>" if sample IDs and related values must not be logged."""
+    return value if LOG_SAMPLE_IDS else "<hidden>"
+
 if not LOG.handlers:  #rq only configures its own logger
     _handler = logging.StreamHandler()
     _handler.setFormatter(
@@ -109,7 +119,7 @@ def replace_object(hcp: HCPHandler, config: Settings, key: str, document: str, d
     if time.time() > deadline:
         # the API has already rolled back MongoDB, so restore the replaced content as well
         hcp.s3_client.put_object(Bucket=config.bucket, Key=key, Body=previous)
-        raise DeadlineExceeded(f"Replacement of {key} finished after the API deadline; previous content restored")
+        raise DeadlineExceeded(f"Replacement of {private(key)} finished after the API deadline; previous content restored")
 
 
 def upload_sample(document:str, deadline: float, overwrite: bool = False) -> dict:
@@ -132,9 +142,9 @@ def upload_sample(document:str, deadline: float, overwrite: bool = False) -> dic
     if hcp.object_exists(key):
         if overwrite:
             replace_object(hcp, config, key, document, deadline)
-            LOG.info("Replaced '%s' in bucket '%s'", key, config.bucket)
+            LOG.info("Replaced '%s' in bucket '%s'", private(key), config.bucket)
             return return_object_base | {"uploaded": True}
-        LOG.info("Sample '%s' already exists in bucket '%s', skipping upload", key, config.bucket)
+        LOG.info("Sample '%s' already exists in bucket '%s', skipping upload", private(key), config.bucket)
         return return_object_base | {"uploaded": False}
 
     with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False) as tmp:
@@ -143,7 +153,7 @@ def upload_sample(document:str, deadline: float, overwrite: bool = False) -> dic
     try:
         hcp.upload_file(tmp.name, key=key, show_progress_bar=False)
     except ObjectAlreadyExistError:  # The file was uploaded after the hcp.object_exists check above
-        LOG.info("%s already exists in bucket %s, skipping upload", key, config.bucket)
+        LOG.info("%s already exists in bucket %s, skipping upload", private(key), config.bucket)
         return return_object_base | {"uploaded": False}
     finally:
         os.unlink(tmp.name)
@@ -151,9 +161,9 @@ def upload_sample(document:str, deadline: float, overwrite: bool = False) -> dic
     if time.time() > deadline:
         # the API has already rolled back MongoDB, so roll back the HCP upload as well
         hcp.delete_object(key)
-        raise DeadlineExceeded(f"Upload of {key} finished after the API deadline; object deleted")
+        raise DeadlineExceeded(f"Upload of {private(key)} finished after the API deadline; object deleted")
 
-    LOG.info("Uploaded '%s' to bucket '%s'", key, config.bucket)
+    LOG.info("Uploaded '%s' to bucket '%s'", private(key), config.bucket)
     return return_object_base | {"uploaded": True}
 
 
@@ -176,5 +186,5 @@ def download_sample(hcp_key: str, deadline: float) -> str:
     config = load_settings()
     hcp = connect(config)
     document = hcp.s3_client.get_object(Bucket=config.bucket, Key=hcp_key)["Body"].read().decode("utf-8")
-    LOG.info("Downloaded '%s' from bucket '%s'", hcp_key, config.bucket)
+    LOG.info("Downloaded '%s' from bucket '%s'", private(hcp_key), config.bucket)
     return document
