@@ -33,6 +33,10 @@ services:
   mongodb:
     image: mongo:4.4.22
     container_name: bonsai_mongodb
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-mongodb"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-mongodb
 #    ports:
 #      - "27017:27017"
 #    expose:
@@ -45,6 +49,10 @@ services:
 
   redis:
     container_name: redis
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-redis"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-redis
     image: redis:7.0.10
     networks:
       - bonsai-net
@@ -52,6 +60,10 @@ services:
   api:
     image: localhost/bonsai-api:prod
     container_name: api
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-api"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-api
     build:
       context: api
       network: host
@@ -94,6 +106,10 @@ services:
   frontend:
     image: localhost/bonsai-frontend:prod
     container_name: frontend
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-frontend"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-frontend
     build:
       context: frontend
       network: host
@@ -126,6 +142,10 @@ services:
   minhash_service:
     image: localhost/bonsai-minhash-service:prod
     container_name: minhash_service
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-minhash_service"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-minhash_service
     build:
       context: minhash_service
       network: host
@@ -147,6 +167,10 @@ services:
   ska_service:
     image: localhost/bonsai-ska-service:prod
     container_name: ska_service
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-ska_service"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-ska_service
     build:
       context: ska_service
       network: host
@@ -169,6 +193,10 @@ services:
   allele_cluster_service:
     image: localhost/bonsai-allele-cluster-service:prod
     container_name: allele_cluster_service
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-allele_cluster_service"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-allele_cluster_service
     build:
       context: allele_cluster_service
       network: host
@@ -183,6 +211,10 @@ services:
     userns_mode: "keep-id:uid=1001,gid=1001"
     user: "1001:1001"
     container_name: hci_hcp_service
+    logging:
+      driver: journald
+      options:
+        tag: "bonsai-prod-hci_hcp_service"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-hci_hcp_service
     build:
       context: hci_hcp_service
       network: host
@@ -204,9 +236,9 @@ services:
     image: localhost/bonsai-api:prod
     container_name: dr_jan_itor
     logging:
-      driver: k8s-file
+      driver: journald
       options:
-        max-size: "10m"
+        tag: "bonsai-prod-dr_jan_itor"  # journalctl --user SYSLOG_IDENTIFIER=bonsai-prod-dr_jan_itor
     build:
       context: api
       network: host
